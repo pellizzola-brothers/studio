@@ -37,7 +37,12 @@ Tile IDs, colors, sprites, and metadata (name, description, category, tags) are 
 
 Sprites live in the `textures/` submodule (separate git repo). The app loads them at startup via `loadSprites()` and falls back to colored rectangles if images fail to load — so the editor works without the submodule initialized.
 
-### Saved level format (JSON)
+### Saved level format (.lvl)
+
+Level files use the `.lvl` extension and are **ZIP archives** containing:
+
+- `LEVEL_DATA.json` — the level data (see schema below)
+- `MIDI_DATA/` — folder for background music tracks (`.mid` files); not edited by the editor, but preserved through open → save cycles
 
 ```json
 {
@@ -53,4 +58,6 @@ Sprites live in the `textures/` submodule (separate git repo). The app loads the
 
 Each entry is a zero-padded 3-character string (`"003"`). The loader also handles the legacy format where `data` is a flat array (single scene).
 
-The `.lvl` files in the repo root are ZIP archives containing `LEVEL_DATA.json` and a `MIDI_DATA/` folder — they are not the plain-JSON format.
+Opening a plain `.json` file is still supported as a fallback (no MIDI data will be preserved).
+
+ZIP handling uses **JSZip** (`node_modules/jszip/dist/jszip.min.js`), loaded as a plain script tag — no build step needed.

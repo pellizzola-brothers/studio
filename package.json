@@ -11,5 +11,8 @@
   "description": "",
   "devDependencies": {
     "electron": "^40.6.1"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
   }
 }

@@ -13,12 +13,13 @@ const TILE_ID_ERASER = 0;
 const EMPTY          = null;
 
 // ── STATE ─────────────────────────────────
-let tileSize     = 24;
-let scenes       = [makeEmptyScene()]; // array de cenas
-let currentScene = 0;                  // índice da cena ativa
-let selectedTile = 1;
-let isPainting   = false;
+let tileSize      = 24;
+let scenes        = [makeEmptyScene()]; // array de cenas
+let currentScene  = 0;                  // índice da cena ativa
+let selectedTile  = 1;
+let isPainting    = false;
 let sceneToRemove = null;
+let loadedMidiData = {}; // { filename: Uint8Array } — preservado entre open/save
 
 // Atalho para a cena ativa
 function scene()     { return scenes[currentScene]; }
@@ -506,7 +507,7 @@ document.addEventListener("keydown", e => {
   }
 });
 
-// ── SALVAR JSON ───────────────────────────
+// ── SALVAR .lvl ───────────────────────────
 function buildDataBlock(entries) {
   const GROUP  = 9;
   const indent = "                "; // 16 espaços
@@ -516,12 +517,11 @@ function buildDataBlock(entries) {
   return "[\n" + lines.join(",\n") + "\n            ]";
 }
 
-document.getElementById("saveMap").addEventListener("click", () => {
+document.getElementById("saveMap").addEventListener("click", async () => {
   const levelName        = document.getElementById("level-name").value        || "";
   const levelDescription = document.getElementById("level-description").value || "";
   const levelAuthor      = document.getElementById("level-author").value      || "";
 
-  // Monta cada cena como um array de strings
   const scenesData = scenes.map(sc => {
     const entries = [];
     for (let y = 0; y < ROWS; y++)
@@ -530,7 +530,6 @@ document.getElementById("saveMap").addEventListener("click", () => {
     return buildDataBlock(entries);
   });
 
-  // data: [ [...cena1...], [...cena2...], ... ]
   const dataStr = "[\n" + scenesData.map(s => "            " + s).join(",\n") + "\n        ]";
 
   const json =
@@ -551,75 +550,108 @@ document.getElementById("saveMap").addEventListener("click", () => {
     return;
   }
 
-  const blob = new Blob([json], { type: "application/json" });
+  const zip = new JSZip();
+  zip.file("LEVEL_DATA.json", json);
+  const midiFolder = zip.folder("MIDI_DATA");
+  for (const [name, data] of Object.entries(loadedMidiData)) {
+    midiFolder.file(name, data);
+  }
+
+  const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement("a");
   a.href     = url;
-  a.download = `${levelName || "map"}.json`;
+  a.download = `${levelName || "map"}.lvl`;
   a.click();
   URL.revokeObjectURL(url);
 });
 
-// ── ABRIR JSON ────────────────────────────
+// ── ABRIR .lvl / .json ────────────────────
+function applyLevelJson(jsonText) {
+  let parsed;
+  try { parsed = JSON.parse(jsonText); } catch {
+    alert("Erro: JSON inválido.");
+    return;
+  }
+
+  const info = parsed?.level?.information;
+  const data = parsed?.level?.data;
+
+  if (!Array.isArray(data)) {
+    alert("Erro: formato de nível inválido (campo 'data' ausente ou incorreto).");
+    return;
+  }
+
+  document.getElementById("level-name").value        = info?.name        ?? "";
+  document.getElementById("level-description").value = info?.description ?? "";
+  document.getElementById("level-author").value      = info?.author      ?? "";
+
+  // Suporte a formato legado (array plano) e novo (array de arrays)
+  const scenesRaw = Array.isArray(data[0]) ? data : [data];
+
+  scenes = scenesRaw.map(rawScene => {
+    const sc = makeEmptyScene();
+    rawScene.forEach((entry, i) => {
+      const x = i % COLS;
+      const y = Math.floor(i / COLS);
+      if (y >= ROWS) return;
+      const cellId = parseInt(entry, 10);
+      if (isNaN(cellId) || cellId === 0) return;
+      sc.map[y][x] = cellId;
+      if (cellId === TILE_ID_START) sc.startPos = { x, y };
+      if (cellId === TILE_ID_END)   sc.endPos   = { x, y };
+    });
+    return sc;
+  });
+
+  currentScene = 0;
+  draw();
+  updateStatus();
+  renderScenePreviews();
+}
+
 document.getElementById("openMap").addEventListener("click", () => {
   const input  = document.createElement("input");
   input.type   = "file";
-  input.accept = ".json,application/json";
+  input.accept = ".lvl,.json,application/json";
 
-  input.addEventListener("change", () => {
+  input.addEventListener("change", async () => {
     const file = input.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      let parsed;
-      try { parsed = JSON.parse(reader.result); } catch {
-        alert("Erro: arquivo JSON inválido.");
+
+    if (file.name.endsWith(".lvl")) {
+      let zip;
+      try {
+        const buf = await file.arrayBuffer();
+        zip = await JSZip.loadAsync(buf);
+      } catch {
+        alert("Erro: arquivo .lvl inválido (ZIP corrompido).");
         return;
       }
 
-      const info = parsed?.level?.information;
-      const data = parsed?.level?.data;
-
-      if (!Array.isArray(data)) {
-        alert("Erro: formato de nível inválido (campo 'data' ausente ou incorreto).");
+      const jsonEntry = zip.file("LEVEL_DATA.json");
+      if (!jsonEntry) {
+        alert("Erro: arquivo .lvl não contém LEVEL_DATA.json.");
         return;
       }
 
-      document.getElementById("level-name").value        = info?.name        ?? "";
-      document.getElementById("level-description").value = info?.description ?? "";
-      document.getElementById("level-author").value      = info?.author      ?? "";
-
-      // Suporte a formato legado (array plano) e novo (array de arrays)
-      let scenesRaw;
-      if (Array.isArray(data[0])) {
-        // Novo formato: array de cenas
-        scenesRaw = data;
-      } else {
-        // Formato legado: array plano → uma única cena
-        scenesRaw = [data];
+      // Preserva arquivos MIDI para o próximo Save
+      loadedMidiData = {};
+      for (const [path, entry] of Object.entries(zip.files)) {
+        if (path.startsWith("MIDI_DATA/") && !entry.dir) {
+          loadedMidiData[path.replace("MIDI_DATA/", "")] = await entry.async("uint8array");
+        }
       }
 
-      scenes = scenesRaw.map(rawScene => {
-        const sc = makeEmptyScene();
-        rawScene.forEach((entry, i) => {
-          const x = i % COLS;
-          const y = Math.floor(i / COLS);
-          if (y >= ROWS) return;
-          const cellId = parseInt(entry, 10);
-          if (isNaN(cellId) || cellId === 0) return;
-          sc.map[y][x] = cellId;
-          if (cellId === TILE_ID_START) sc.startPos = { x, y };
-          if (cellId === TILE_ID_END)   sc.endPos   = { x, y };
-        });
-        return sc;
-      });
-
-      currentScene = 0;
-      draw();
-      updateStatus();
-      renderScenePreviews();
-    });
-    reader.readAsText(file);
+      const jsonText = await jsonEntry.async("string");
+      applyLevelJson(jsonText);
+    } else {
+      // Fallback: plain JSON
+      loadedMidiData = {};
+      const reader = new FileReader();
+      reader.addEventListener("load", () => applyLevelJson(reader.result));
+      reader.readAsText(file);
+    }
   });
 
   input.click();
