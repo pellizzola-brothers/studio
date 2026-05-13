@@ -21,6 +21,10 @@ let isPainting    = false;
 let sceneToRemove = null;
 let loadedMidiData = {}; // { filename: Uint8Array } — preservado entre open/save
 
+window.__hasUnsavedChanges = false;
+function markChanged() { window.__hasUnsavedChanges = true; }
+function markSaved()   { window.__hasUnsavedChanges = false; }
+
 // Atalho para a cena ativa
 function scene()     { return scenes[currentScene]; }
 function sceneMap()  { return scene().map; }
@@ -219,16 +223,33 @@ function paint(e) {
 
   const sc      = scene();
   const current = sc.map[y][x];
+  let needFullPreviewRefresh = false;
 
   if (selectedTile === TILE_ID_ERASER) {
     if (current === TILE_ID_START) sc.startPos = null;
     if (current === TILE_ID_END)   sc.endPos   = null;
     sc.map[y][x] = EMPTY;
   } else if (selectedTile === TILE_ID_START) {
+    // Remove START from any other scene (level-wide uniqueness)
+    scenes.forEach((s, i) => {
+      if (i !== currentScene && s.startPos) {
+        s.map[s.startPos.y][s.startPos.x] = EMPTY;
+        s.startPos = null;
+        needFullPreviewRefresh = true;
+      }
+    });
     if (sc.startPos) sc.map[sc.startPos.y][sc.startPos.x] = EMPTY;
-    sc.startPos   = { x, y };
-    sc.map[y][x]  = TILE_ID_START;
+    sc.startPos  = { x, y };
+    sc.map[y][x] = TILE_ID_START;
   } else if (selectedTile === TILE_ID_END) {
+    // Remove END from any other scene (level-wide uniqueness)
+    scenes.forEach((s, i) => {
+      if (i !== currentScene && s.endPos) {
+        s.map[s.endPos.y][s.endPos.x] = EMPTY;
+        s.endPos = null;
+        needFullPreviewRefresh = true;
+      }
+    });
     if (sc.endPos) sc.map[sc.endPos.y][sc.endPos.x] = EMPTY;
     sc.endPos    = { x, y };
     sc.map[y][x] = TILE_ID_END;
@@ -238,13 +259,18 @@ function paint(e) {
     sc.map[y][x] = selectedTile;
   }
 
+  markChanged();
   draw();
   updateStatus();
-  // Atualiza preview da cena atual
-  const thumbs = document.querySelectorAll(".scene-thumb");
-  if (thumbs[currentScene]) {
-    const cvs = thumbs[currentScene].querySelector("canvas");
-    if (cvs) drawPreview(sc, cvs);
+
+  if (needFullPreviewRefresh) {
+    renderScenePreviews();
+  } else {
+    const thumbs = document.querySelectorAll(".scene-thumb");
+    if (thumbs[currentScene]) {
+      const cvs = thumbs[currentScene].querySelector("canvas");
+      if (cvs) drawPreview(sc, cvs);
+    }
   }
   if (selectedTile !== TILE_ID_ERASER && sc.map[y][x] !== EMPTY) addRecent(selectedTile);
 }
@@ -427,6 +453,7 @@ document.getElementById("addScene").addEventListener("click", () => {
   if (scenes.length >= MAX_SCENES) return;
   scenes.push(makeEmptyScene());
   currentScene = scenes.length - 1;
+  markChanged();
   draw();
   updateStatus();
   renderScenePreviews();
@@ -455,8 +482,9 @@ function updateStatus() {
   stTiles.textContent  = count;
   stScenes.textContent = scenes.length;
 
-  // Botão adicionar desabilita quando atingir MAX
-  document.getElementById("addScene").disabled = scenes.length >= MAX_SCENES;
+  // Oculta botão de adicionar cena quando atingir o limite
+  const addSceneBtn = document.getElementById("addScene");
+  addSceneBtn.style.display = scenes.length >= MAX_SCENES ? "none" : "";
 }
 
 // ── MODAL LIMPAR ──────────────────────────
@@ -472,6 +500,7 @@ modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) mod
 
 modalConfirm.addEventListener("click", () => {
   scenes[currentScene] = makeEmptyScene();
+  markChanged();
   draw();
   updateStatus();
   renderScenePreviews();
@@ -491,6 +520,7 @@ document.getElementById("modal-remove-confirm").addEventListener("click", () => 
   if (sceneToRemove === null) return;
   scenes.splice(sceneToRemove, 1);
   if (currentScene >= scenes.length) currentScene = scenes.length - 1;
+  markChanged();
   draw();
   updateStatus();
   renderScenePreviews();
@@ -564,6 +594,7 @@ document.getElementById("saveMap").addEventListener("click", async () => {
   a.download = `${levelName || "map"}.lvl`;
   a.click();
   URL.revokeObjectURL(url);
+  markSaved();
 });
 
 // ── ABRIR .lvl / .json ────────────────────
@@ -605,6 +636,7 @@ function applyLevelJson(jsonText) {
   });
 
   currentScene = 0;
+  markChanged();
   draw();
   updateStatus();
   renderScenePreviews();
@@ -658,6 +690,10 @@ document.getElementById("openMap").addEventListener("click", () => {
 });
 
 // ── INIT ──────────────────────────────────
+["level-name", "level-description", "level-author"].forEach(id => {
+  document.getElementById(id).addEventListener("input", markChanged);
+});
+
 sizeCanvas();
 updateStatus();
 renderBlockGrid();
