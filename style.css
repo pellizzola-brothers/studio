@@ -1,5 +1,5 @@
 /* ========================================
-   MAP STUDIO — Dark Military UI v2
+   MAP STUDIO — Dark Military UI v2 (Enhanced)
    ======================================== */
 
 *, *::before, *::after {
@@ -18,9 +18,11 @@
   --accent:       #e8b840;
   --accent-dim:   #8a6a14;
   --accent-glow:  #e8b84018;
+  --accent-soft:  #e8b84060;
   --text-hi:      #edf0f8;
-  --text-mid:     #8a92a6;
-  --text-lo:      #44505e;
+  --text-mid:     #b8c0d4;
+  --text-lo:      #e8b840;       /* ← cinza → amarelo accent */
+  --text-muted:   #44505e;       /* para usos onde cinza ainda faz sentido */
   --green:        #00e07a;
   --red:          #f03558;
   --mono:         'Share Tech Mono', monospace;
@@ -85,6 +87,7 @@ html, body {
   font-size: 14px;
   border-radius: 4px;
   font-weight: 900;
+  box-shadow: 0 0 12px var(--accent-soft);
 }
 
 .logo-accent { color: var(--accent); }
@@ -92,10 +95,11 @@ html, body {
 .header-tag {
   font-size: 9px;
   letter-spacing: 3px;
-  color: var(--text-lo);
-  border: 1px solid var(--border);
+  color: var(--accent);           /* ← era cinza */
+  border: 1px solid var(--accent-dim);
   border-radius: 3px;
   padding: 3px 8px;
+  text-shadow: 0 0 8px var(--accent-soft);
 }
 
 #header-actions {
@@ -127,8 +131,8 @@ html, body {
 
 .btn-ghost:hover {
   background: var(--bg-hover);
-  color: var(--text-hi);
-  border-color: var(--border-lit);
+  color: var(--accent);           /* ← hover agora vai pro amarelo */
+  border-color: var(--accent-dim);
 }
 
 .btn-danger {
@@ -147,11 +151,13 @@ html, body {
   color: #000;
   border-color: var(--accent);
   font-weight: bold;
+  box-shadow: 0 0 16px var(--accent-soft);
 }
 
 .btn-save:hover {
   background: #f5cc60;
   border-color: #f5cc60;
+  box-shadow: 0 0 24px var(--accent);
 }
 
 /* ── SCENE BAR ──────────────────────────── */
@@ -191,19 +197,20 @@ html, body {
   border-radius: 6px;
   border: 2px solid var(--border);
   background: var(--bg-deep);
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
   user-select: none;
 }
 
 .scene-thumb:hover {
-  border-color: var(--border-lit);
+  border-color: var(--accent-dim);
   background: var(--bg-card);
+  box-shadow: 0 0 8px var(--accent-glow);
 }
 
 .scene-thumb.active {
   border-color: var(--accent);
   background: var(--bg-card);
-  box-shadow: 0 0 0 1px var(--accent-dim), 0 0 12px var(--accent-glow);
+  box-shadow: 0 0 0 1px var(--accent-dim), 0 0 16px var(--accent-glow);
 }
 
 .scene-thumb canvas {
@@ -216,13 +223,16 @@ html, body {
   font-family: var(--title);
   font-size: 7px;
   letter-spacing: 2px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza-escuro */
   text-align: center;
   line-height: 1;
+  opacity: 0.6;
 }
 
 .scene-thumb.active .scene-label {
   color: var(--accent);
+  opacity: 1;
+  text-shadow: 0 0 8px var(--accent-soft);
 }
 
 /* Botão remover cena */
@@ -257,9 +267,9 @@ html, body {
   letter-spacing: 1.5px;
   padding: 8px 14px;
   border-radius: 5px;
-  border: 1px dashed var(--border-lit);
+  border: 1px dashed var(--accent-dim);  /* ← era border-lit */
   background: transparent;
-  color: var(--text-mid);
+  color: var(--accent);                   /* ← era text-mid */
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
@@ -267,12 +277,15 @@ html, body {
   flex-shrink: 0;
   height: 68px;
   align-self: center;
+  opacity: 0.7;
 }
 
 .btn-add-scene:hover:not(:disabled) {
-  border-color: var(--accent-dim);
+  border-color: var(--accent);
   color: var(--accent);
   background: var(--accent-glow);
+  opacity: 1;
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .btn-add-scene:disabled {
@@ -299,7 +312,7 @@ html, body {
 }
 
 #sidebar::-webkit-scrollbar { width: 3px; }
-#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--accent-dim); border-radius: 2px; }
 
 .sidebar-block {
   padding: 16px 12px 8px;
@@ -310,9 +323,10 @@ html, body {
   font-family: var(--title);
   font-size: 8px;
   letter-spacing: 3px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
   margin-bottom: 10px;
   text-transform: uppercase;
+  opacity: 0.8;
 }
 
 /* ── META FIELDS ────────────────────────── */
@@ -326,8 +340,9 @@ html, body {
 .meta-label {
   font-size: 9px;
   letter-spacing: 2px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
   text-transform: uppercase;
+  opacity: 0.7;
 }
 
 .meta-input {
@@ -344,8 +359,8 @@ html, body {
 }
 
 .meta-input::placeholder {
-  color: var(--text-lo);
-  opacity: 0.6;
+  color: var(--text-muted);
+  opacity: 0.8;
 }
 
 .meta-input:focus {
@@ -376,6 +391,7 @@ html, body {
 .sprite-item.active {
   background: var(--bg-hover);
   border-color: var(--accent);
+  box-shadow: inset 0 0 12px var(--accent-glow);
 }
 
 .sprite-item.active::before {
@@ -385,6 +401,7 @@ html, body {
   width: 2px;
   background: var(--accent);
   border-radius: 0 2px 2px 0;
+  box-shadow: 0 0 6px var(--accent);
 }
 
 .sprite-item.active .tool-name { color: var(--accent); }
@@ -427,8 +444,9 @@ html, body {
 
 .tool-desc {
   font-size: 9px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza-escuro */
   letter-spacing: 0.5px;
+  opacity: 0.7;
 }
 
 /* ── STATUS ─────────────────────────────── */
@@ -446,13 +464,19 @@ html, body {
   background: var(--bg-deep);
   border-radius: 4px;
   border: 1px solid var(--border);
+  transition: border-color 0.12s;
+}
+
+.status-row:hover {
+  border-color: var(--border-lit);
 }
 
 .status-label {
   font-size: 9px;
   letter-spacing: 1.5px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
   text-transform: uppercase;
+  opacity: 0.8;
 }
 
 .status-badge {
@@ -463,8 +487,8 @@ html, body {
   letter-spacing: 1px;
 }
 
-.badge-off     { color: var(--text-lo); }
-.badge-on      { color: var(--green); }
+.badge-off     { color: var(--text-muted); }
+.badge-on      { color: var(--green); text-shadow: 0 0 8px var(--green); }
 .badge-neutral { color: var(--accent); }
 
 /* ── BLOCK SEARCH ───────────────────────── */
@@ -479,9 +503,10 @@ html, body {
   position: absolute;
   left: 8px;
   font-size: 14px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
   pointer-events: none;
   line-height: 1;
+  opacity: 0.7;
 }
 
 .block-search {
@@ -497,7 +522,7 @@ html, body {
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.block-search::placeholder { color: var(--text-lo); opacity: 0.6; }
+.block-search::placeholder { color: var(--text-muted); opacity: 0.8; }
 .block-search:focus {
   border-color: var(--accent-dim);
   box-shadow: 0 0 0 3px var(--accent-glow);
@@ -525,17 +550,19 @@ html, body {
   border-radius: 3px;
   border: 1px solid var(--border);
   background: var(--bg-deep);
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.12s;
   text-transform: uppercase;
+  opacity: 0.7;
 }
 
 .cat-btn:hover {
   background: var(--bg-hover);
-  color: var(--text-mid);
-  border-color: var(--border-lit);
+  color: var(--accent);
+  border-color: var(--accent-dim);
+  opacity: 1;
 }
 
 .cat-btn.active {
@@ -543,15 +570,26 @@ html, body {
   color: #000;
   border-color: var(--accent);
   font-weight: bold;
+  opacity: 1;
+  box-shadow: 0 0 10px var(--accent-soft);
 }
 
 /* ── BLOCK GRID ─────────────────────────── */
+/* O container externo vira flex-column para acomodar headers + subgrids */
 .block-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 8px;
+  min-height: 40px;
+}
+
+/* Cada grupo de blocos de uma categoria */
+.block-subgrid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 4px;
-  margin-bottom: 8px;
-  min-height: 40px;
+  margin-bottom: 4px;
 }
 
 .block-cell {
@@ -571,12 +609,13 @@ html, body {
 
 .block-cell:hover {
   background: var(--bg-hover);
-  border-color: var(--border);
+  border-color: var(--border-lit);
 }
 
 .block-cell.active {
   background: var(--bg-hover);
   border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim) inset, 0 0 12px var(--accent-glow);
 }
 
 .block-cell .cell-preview {
@@ -596,40 +635,67 @@ html, body {
 .block-cell .cell-name {
   font-size: 8px;
   letter-spacing: 0.5px;
-  color: var(--text-mid);
+  color: var(--accent);           /* ← era cinza-médio */
   text-align: center;
   line-height: 1.2;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  opacity: 0.8;
 }
 
-.block-cell.active .cell-name { color: var(--accent); }
+.block-cell.active .cell-name {
+  color: var(--accent);
+  opacity: 1;
+}
 
 .fav-btn {
   position: absolute;
   top: 2px;
   right: 3px;
   font-size: 9px;
-  color: var(--text-lo);
+  color: var(--text-muted);
   background: none;
   border: none;
   cursor: pointer;
   line-height: 1;
   padding: 0;
-  transition: color 0.12s;
+  transition: color 0.12s, text-shadow 0.12s;
 }
 .fav-btn:hover { color: var(--accent); }
-.fav-btn.fav-on { color: var(--accent); }
+.fav-btn.fav-on {
+  color: var(--accent);
+  text-shadow: 0 0 6px var(--accent);
+}
 
 .block-empty {
   grid-column: 1 / -1;
   font-size: 10px;
-  color: var(--text-lo);
+  color: var(--accent);
   text-align: center;
   padding: 12px 0;
   letter-spacing: 1px;
+  opacity: 0.5;
+}
+
+/* ── CATEGORY HEADER NO GRID ────────────── */
+.block-category-header {
+  grid-column: 1 / -1;
+  font-family: var(--title);
+  font-size: 7px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-transform: uppercase;
+  padding: 8px 2px 4px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 4px;
+  opacity: 0.9;
+}
+
+.block-category-header:first-child {
+  margin-top: 0;
+  padding-top: 2px;
 }
 
 /* ── ERASER ROW ─────────────────────────── */
@@ -683,7 +749,8 @@ html, body {
   box-shadow:
     0 0 0 1px var(--bg-deep),
     0 4px 32px #00000080,
-    0 0 0 2px var(--border);
+    0 0 0 2px var(--border),
+    0 0 40px #e8b84008;
 }
 
 #coords-display {
@@ -691,9 +758,10 @@ html, body {
   bottom: -26px;
   right: 0;
   font-size: 10px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
   letter-spacing: 1.5px;
   font-family: var(--mono);
+  opacity: 0.8;
 }
 
 /* ── MODAIS ─────────────────────────────── */
@@ -706,6 +774,7 @@ html, body {
   z-index: 100;
   align-items: center;
   justify-content: center;
+  backdrop-filter: blur(2px);
 }
 
 #modal-overlay.open,
@@ -719,6 +788,7 @@ html, body {
   border-radius: 8px;
   width: 340px;
   overflow: hidden;
+  box-shadow: 0 20px 60px #000a, 0 0 0 1px var(--border);
 }
 
 #modal-header {
@@ -772,7 +842,7 @@ html, body {
 
 .btn-modal-cancel {
   background: var(--bg-hover);
-  color: var(--text-mid);
+  color: var(--accent);           /* ← era cinza-médio */
   border: 1px solid var(--border-lit);
   font-family: var(--mono);
   font-size: 10px;
@@ -787,6 +857,7 @@ html, body {
 .btn-modal-cancel:hover {
   color: var(--text-hi);
   background: var(--border);
+  border-color: var(--accent-dim);
 }
 
 .btn-modal-confirm {
@@ -807,6 +878,7 @@ html, body {
 .btn-modal-confirm:hover {
   background: #ff4f6e;
   border-color: #ff4f6e;
+  box-shadow: 0 0 12px #f03558a0;
 }
 
 /* ── BOTTOM BAR ─────────────────────────── */
@@ -824,5 +896,11 @@ html, body {
 .bottom-info {
   font-size: 9px;
   letter-spacing: 2px;
-  color: var(--text-lo);
+  color: var(--accent);           /* ← era cinza */
+  opacity: 0.7;
+}
+
+#bottom-coords {
+  opacity: 1;
+  color: var(--accent);
 }
