@@ -7,10 +7,21 @@ const ROWS = 20;
 const MAX_SCENES = 9;
 
 // ── TILE IDs ──────────────────────────────
+// Blocos (tiles sólidos colocados no mapa)
 const TILE_ID_START  = 1;
-const TILE_ID_END    = 4;
+const TILE_ID_END    = 2;
 const TILE_ID_ERASER = 0;
 const EMPTY          = null;
+
+// IDs de entidades/inimigos (colocados no mapa como marcadores)
+// 50+ = inimigos, 40+ = interactives/usáveis
+const ENT_CHAPELEIRA  = 50;
+const ENT_ERICK       = 51;
+const ENT_GOOMBERICK  = 52;
+const ENT_PRANTA      = 53;
+const ENT_LINUX       = 54;
+const ENT_BULLET      = 55;
+const ENT_PELLIZZOLA  = 56;
 
 // ── STATE ─────────────────────────────────
 let tileSize      = 24;
@@ -28,94 +39,98 @@ function markSaved()   { window.__hasUnsavedChanges = false; }
 function scene()    { return scenes[currentScene]; }
 function sceneMap() { return scene().map; }
 
+// ── BACKGROUNDS ───────────────────────────
+// Fundos disponíveis para personalização de cena
+const BACKGROUNDS = [
+  { id: "dark",    label: "Escuro",     color: "#070911", gradient: null },
+  { id: "sky",     label: "Céu",        color: "#1a3a6e", gradient: "linear-gradient(180deg, #1a2a6e 0%, #3a6ea8 60%, #7aabe8 100%)" },
+  { id: "sunset",  label: "Pôr do sol", color: "#3a1a0a", gradient: "linear-gradient(180deg, #1a0a2e 0%, #6e2a1a 40%, #e85a20 80%, #e8b040 100%)" },
+  { id: "cave",    label: "Caverna",    color: "#0a0a0a", gradient: "linear-gradient(180deg, #0a0a0a 0%, #1a1018 60%, #0a0808 100%)" },
+  { id: "forest",  label: "Floresta",   color: "#0a1a0a", gradient: "linear-gradient(180deg, #0a1a0a 0%, #102810 50%, #1a3a18 100%)" },
+  { id: "snow",    label: "Neve",       color: "#b0c8e8", gradient: "linear-gradient(180deg, #8aaace 0%, #b0c8e8 50%, #d0e0f0 100%)" },
+  { id: "lava",    label: "Vulcão",     color: "#1a0800", gradient: "linear-gradient(180deg, #1a0800 0%, #3a1000 50%, #6a2000 100%)" },
+  { id: "water",   label: "Água",       color: "#082838", gradient: "linear-gradient(180deg, #082838 0%, #104860 50%, #1a6880 100%)" },
+];
+
 // ── SPRITE PATHS ──────────────────────────
-// Segue o padrão: textures/blocks/<nome>.png
-// IDs 1-5 existentes + novos a partir de 6
+// Mapeados exatamente a partir da sprite_sheet.png real do projeto
 const SPRITE_PATHS = {
-  // ── Lógica
+  // ── Lógica / Marcadores
   1:  "textures/blocks/start_level.png",
-  4:  "textures/blocks/end_level.png",
+  2:  "textures/blocks/end_level.png",
 
-  // ── Estrutura
-  2:  "textures/blocks/bricks.png",
-  6:  "textures/blocks/stone_block.png",
-  7:  "textures/blocks/wood_block.png",
-  8:  "textures/blocks/metal_block.png",
-  9:  "textures/blocks/dirt_block.png",
-  10: "textures/blocks/grass_block.png",
-  11: "textures/blocks/sand_block.png",
-  12: "textures/blocks/cloud_block.png",
+  // ── Blocos (existentes na sprite sheet — seção "Blocks")
+  3:  "textures/blocks/exclamation_block.png",     // bloco amarelo exclamação (Lucky)
+  4:  "textures/blocks/ice_block.png",             // bloco de gelo/neve
+  5:  "textures/blocks/bricks.png",                // tijolo
+  6:  "textures/blocks/arrow_right_block.png",     // bloco seta (direita)
+  7:  "textures/blocks/cyan_block.png",            // bloco ciano (água/gelo)
+  8:  "textures/blocks/white_block.png",           // bloco branco
+  9:  "textures/blocks/gray_block.png",            // bloco cinza claro
+  10: "textures/blocks/stone_block.png",           // bloco pedra cinza escuro
+  11: "textures/blocks/sand_block.png",            // areia/terra amarelada
+  12: "textures/blocks/orange_block.png",          // bloco laranja texturizado
+  13: "textures/blocks/orange_block2.png",         // bloco laranja variante
+  14: "textures/blocks/music_block.png",           // bloco nota musical
+  15: "textures/blocks/face_block.png",            // bloco rosto (smiley)
 
-  // ── Interação
-  3:  "textures/blocks/lucky_block.png",
-  5:  "textures/blocks/ice_excla_block.png",
-  13: "textures/blocks/checkpoint_flag.png",
-  14: "textures/blocks/checkpoint_flag_active.png",
-  15: "textures/blocks/coin.png",
-  16: "textures/blocks/spring.png",
-  17: "textures/blocks/door.png",
-  18: "textures/blocks/key.png",
+  // ── Interactives (seção "Interactives" na sprite sheet)
+  40: "textures/interactives/play_button.png",     // botão play (triângulo)
+  41: "textures/interactives/pause_button.png",    // botão pausa
+  42: "textures/interactives/play_big.png",        // play grande
+  43: "textures/interactives/pizza.png",           // pizza
+  44: "textures/interactives/arrow_red.png",       // seta vermelha
+  45: "textures/interactives/skull.png",           // caveira
+  46: "textures/interactives/star.png",            // estrela
 
-  // ── Perigo
-  19: "textures/blocks/spike.png",
-  20: "textures/blocks/lava_block.png",
-  21: "textures/blocks/fire.png",
-  22: "textures/blocks/saw.png",
-
-  // ── Movimento
-  23: "textures/blocks/moving_platform.png",
-  24: "textures/blocks/conveyor_left.png",
-  25: "textures/blocks/conveyor_right.png",
-
-  // ── Decoração
-  26: "textures/blocks/bush.png",
-  27: "textures/blocks/flower.png",
-  28: "textures/blocks/mushroom.png",
-  29: "textures/blocks/sign.png",
+  // ── Entidades / Inimigos (da sprite sheet)
+  50: "textures/entities/chapeleira.png",          // Chapeleira (frame 1)
+  51: "textures/entities/erick.png",               // Erick
+  52: "textures/entities/goomberick.png",          // Goomberick
+  53: "textures/entities/pranta.png",              // Pranta
+  54: "textures/entities/linux.png",               // Linux (pinguim)
+  55: "textures/entities/bullet.png",              // Bullet
+  56: "textures/entities/pellizzola.png",          // Pellizzola (frame 1)
 };
 
 // ── TILE COLORS (fallback sem sprite) ─────
 const TILE_COLORS = {
   // Lógica
   1:  { fill: "#00471f", stroke: "#00e07a", label: "S" },
-  4:  { fill: "#5c0018", stroke: "#f03558", label: "E" },
+  2:  { fill: "#5c0018", stroke: "#f03558", label: "E" },
 
-  // Estrutura
-  2:  { fill: "#6b2510", stroke: "#b84a30" },
-  6:  { fill: "#404040", stroke: "#888888" },
-  7:  { fill: "#5a3010", stroke: "#a06030" },
-  8:  { fill: "#2a3040", stroke: "#6080b0" },
-  9:  { fill: "#3d2b14", stroke: "#7a5530" },
-  10: { fill: "#1a4010", stroke: "#40a020" },
+  // Blocos estrutura
+  3:  { fill: "#7a5800", stroke: "#e8b840", label: "!" },
+  4:  { fill: "#2a6080", stroke: "#7ecfef", label: "❄" },
+  5:  { fill: "#6b2510", stroke: "#b84a30" },
+  6:  { fill: "#203050", stroke: "#4080c0", label: "→" },
+  7:  { fill: "#104050", stroke: "#40c0d0", label: "~" },
+  8:  { fill: "#d0d0d0", stroke: "#ffffff" },
+  9:  { fill: "#909090", stroke: "#c0c0c0" },
+  10: { fill: "#404040", stroke: "#808080" },
   11: { fill: "#8a7040", stroke: "#c0a868" },
-  12: { fill: "#c0c0d0", stroke: "#e0e0f0", label: "☁" },
+  12: { fill: "#804020", stroke: "#c06040" },
+  13: { fill: "#804020", stroke: "#e07030" },
+  14: { fill: "#303060", stroke: "#6060c0", label: "♪" },
+  15: { fill: "#404040", stroke: "#e0e0a0", label: "☺" },
 
-  // Interação
-  3:  { fill: "#7a5800", stroke: "#e8b840", label: "?" },
-  5:  { fill: "#2a6080", stroke: "#7ecfef", label: "!" },
-  13: { fill: "#1a4020", stroke: "#50c060", label: "⚑" },
-  14: { fill: "#1a4020", stroke: "#f0c020", label: "⚐" },
-  15: { fill: "#806000", stroke: "#f0c000", label: "¢" },
-  16: { fill: "#404020", stroke: "#c0c040", label: "↑" },
-  17: { fill: "#402810", stroke: "#a06840", label: "▭" },
-  18: { fill: "#604010", stroke: "#e0b030", label: "⚿" },
+  // Interactives
+  40: { fill: "#002060", stroke: "#4080ff", label: "▶" },
+  41: { fill: "#003060", stroke: "#40a0ff", label: "⏸" },
+  42: { fill: "#001840", stroke: "#3060c0", label: "▶▶" },
+  43: { fill: "#601800", stroke: "#e06030", label: "🍕" },
+  44: { fill: "#601010", stroke: "#e03030", label: "▶" },
+  45: { fill: "#202020", stroke: "#c0c0c0", label: "☠" },
+  46: { fill: "#606000", stroke: "#e0e000", label: "★" },
 
-  // Perigo
-  19: { fill: "#401010", stroke: "#c03030", label: "▲" },
-  20: { fill: "#601800", stroke: "#ff4800", label: "▓" },
-  21: { fill: "#601000", stroke: "#ff6000", label: "🔥" },
-  22: { fill: "#303030", stroke: "#909090", label: "⚙" },
-
-  // Movimento
-  23: { fill: "#203050", stroke: "#4080c0", label: "↔" },
-  24: { fill: "#202040", stroke: "#6060c0", label: "◄" },
-  25: { fill: "#202040", stroke: "#c06060", label: "►" },
-
-  // Decoração
-  26: { fill: "#103010", stroke: "#30a030", label: "🌿" },
-  27: { fill: "#401040", stroke: "#e040e0", label: "✿" },
-  28: { fill: "#401010", stroke: "#e04040", label: "🍄" },
-  29: { fill: "#302010", stroke: "#a08040", label: "!" },
+  // Entidades
+  50: { fill: "#1a3050", stroke: "#4080c0", label: "C" },
+  51: { fill: "#203020", stroke: "#40a040", label: "Er" },
+  52: { fill: "#2a2a10", stroke: "#a0a030", label: "G" },
+  53: { fill: "#103010", stroke: "#30a030", label: "Pr" },
+  54: { fill: "#102040", stroke: "#2060a0", label: "🐧" },
+  55: { fill: "#602000", stroke: "#e05000", label: "•" },
+  56: { fill: "#302010", stroke: "#a06030", label: "P" },
 };
 
 // ── SPRITES ───────────────────────────────
@@ -140,7 +155,12 @@ function loadSprites() {
 
 // ── SCENE FACTORY ─────────────────────────
 function makeEmptyScene() {
-  return { map: makeEmptyMap(), startPos: null, endPos: null };
+  return {
+    map: makeEmptyMap(),
+    startPos: null,
+    endPos: null,
+    background: "dark",   // ← novo: fundo personalizado por cena
+  };
 }
 
 function makeEmptyMap() {
@@ -160,6 +180,27 @@ function sizeCanvas() {
 
 window.addEventListener("resize", sizeCanvas);
 
+// ── DRAW: fundo da cena ───────────────────
+function drawBackground() {
+  const bg = BACKGROUNDS.find(b => b.id === scene().background) || BACKGROUNDS[0];
+  if (bg.gradient) {
+    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    // Parse o gradient linear simples
+    const stops = bg.gradient.match(/rgba?\([^)]+\)|#[0-9a-fA-F]+/g);
+    if (stops && stops.length >= 2) {
+      stops.forEach((color, i) => {
+        grad.addColorStop(i / (stops.length - 1), color);
+      });
+      ctx.fillStyle = grad;
+    } else {
+      ctx.fillStyle = bg.color;
+    }
+  } else {
+    ctx.fillStyle = bg.color;
+  }
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
 // ── DRAW MAIN CANVAS ──────────────────────
 function drawTile(x, y, id) {
   const px  = x * tileSize;
@@ -178,25 +219,39 @@ function drawTile(x, y, id) {
     ctx.strokeRect(px + 0.5, py + 0.5, tileSize - 1, tileSize - 1);
     if (c.label && tileSize >= 16) {
       ctx.fillStyle    = c.stroke + "cc";
-      ctx.font         = `bold ${Math.max(8, Math.floor(tileSize * 0.38))}px 'Share Tech Mono', monospace`;
+      ctx.font         = `bold ${Math.max(7, Math.floor(tileSize * 0.35))}px 'Share Tech Mono', monospace`;
       ctx.textAlign    = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(c.label, px + tileSize / 2, py + tileSize / 2);
     }
   }
+
+  // Entidades têm um indicador de "entidade" no canto
+  if (id >= 50) {
+    ctx.fillStyle = "rgba(255,200,0,0.18)";
+    ctx.fillRect(px, py, tileSize, tileSize);
+    // borda pontilhada amarela
+    ctx.setLineDash([2, 2]);
+    ctx.strokeStyle = "#e8b840aa";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(px + 1, py + 1, tileSize - 2, tileSize - 2);
+    ctx.setLineDash([]);
+  }
 }
 
 function draw() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#070911";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Fundo personalizado da cena
+  drawBackground();
 
   const m = sceneMap();
   for (let y = 0; y < ROWS; y++)
     for (let x = 0; x < COLS; x++)
       if (m[y][x] !== EMPTY) drawTile(x, y, m[y][x]);
 
-  ctx.strokeStyle = "#1a2030";
+  // Grade
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
   ctx.lineWidth   = 1;
   for (let y = 0; y <= ROWS; y++) {
     ctx.beginPath(); ctx.moveTo(0, y * tileSize); ctx.lineTo(canvas.width, y * tileSize); ctx.stroke();
@@ -214,7 +269,10 @@ const PREV_TILE = PREV_W / COLS;
 function drawPreview(sc, canvasEl) {
   const c = canvasEl.getContext("2d");
   c.clearRect(0, 0, PREV_W, PREV_H);
-  c.fillStyle = "#070911";
+
+  // Fundo do preview
+  const bg = BACKGROUNDS.find(b => b.id === sc.background) || BACKGROUNDS[0];
+  c.fillStyle = bg.color;
   c.fillRect(0, 0, PREV_W, PREV_H);
 
   const m = sc.map;
@@ -223,7 +281,7 @@ function drawPreview(sc, canvasEl) {
       const id = m[y][x];
       if (id === EMPTY) continue;
       const px = x * PREV_TILE;
-      const py = y * PREV_TILE;
+      const py = y * (PREV_H / ROWS);
       const img = sprites[id];
       if (img) {
         c.drawImage(img, px, py, PREV_TILE, PREV_H / ROWS);
@@ -271,6 +329,7 @@ function renderScenePreviews() {
       draw();
       updateStatus();
       renderScenePreviews();
+      renderBgPicker(); // Atualiza o seletor de fundo ao trocar de cena
     });
 
     wrapper.appendChild(cvs);
@@ -297,6 +356,7 @@ function paint(e) {
     if (current === TILE_ID_END)   sc.endPos   = null;
     sc.map[y][x] = EMPTY;
   } else if (selectedTile === TILE_ID_START) {
+    // START: único por projeto (pode estar em qualquer cena)
     scenes.forEach((s, i) => {
       if (i !== currentScene && s.startPos) {
         s.map[s.startPos.y][s.startPos.x] = EMPTY;
@@ -357,23 +417,25 @@ canvas.addEventListener("mouseup",    () => { isPainting = false; });
 canvas.addEventListener("mouseleave", () => { isPainting = false; });
 
 // ── BLOCK REGISTRY ────────────────────────
-// Cada bloco tem: id, name, desc, category, tags, previewStyle, previewLabel
+// Apenas tiles/entidades presentes na sprite_sheet.png real do projeto.
+// Blocos inventados (stone_block, wood_block, metal_block, grass, lava, saw,
+// conveyor, bush, flower, mushroom, sign, etc.) foram removidos.
 const BLOCK_REGISTRY = [
 
   // ── LÓGICA ──────────────────────────────
   {
     id: 1,
     name: "START",
-    desc: "Ponto inicial do nível",
+    desc: "Ponto inicial do nível (spawn do jogador)",
     category: "logica",
     tags: ["start", "inicio", "começo", "spawn", "jogador"],
     previewStyle: "background:#00471f; border-color:#00e07a40;",
     previewLabel: { text: "S", color: "#00e07a" },
   },
   {
-    id: 4,
+    id: 2,
     name: "END",
-    desc: "Ponto final do nível",
+    desc: "Ponto final — completa o nível",
     category: "logica",
     tags: ["end", "fim", "saida", "meta", "goal", "completo"],
     previewStyle: "background:#5c0018; border-color:#f0355540;",
@@ -382,9 +444,27 @@ const BLOCK_REGISTRY = [
 
   // ── ESTRUTURA ────────────────────────────
   {
-    id: 2,
+    id: 3,
+    name: "Bloco !",
+    desc: "Bloco amarelo de exclamação (Lucky Block)",
+    category: "estrutura",
+    tags: ["lucky", "exclamacao", "amarelo", "surpresa", "item", "bonus"],
+    previewStyle: "background:#7a5800; border-color:#e8b84040;",
+    previewLabel: { text: "!", color: "#e8b840" },
+  },
+  {
+    id: 4,
+    name: "Bloco Gelo",
+    desc: "Bloco de gelo/neve — superfície escorregadia",
+    category: "estrutura",
+    tags: ["gelo", "ice", "neve", "snow", "frio", "escorregadio"],
+    previewStyle: "background:#2a6080; border-color:#7ecfef40;",
+    previewLabel: { text: "❄", color: "#7ecfef" },
+  },
+  {
+    id: 5,
     name: "Tijolo",
-    desc: "Bloco sólido básico",
+    desc: "Bloco de tijolo sólido básico",
     category: "estrutura",
     tags: ["tijolo", "brick", "solido", "chao", "parede", "basico"],
     previewStyle: "background:#6b2510; border-color:#b84a3040;",
@@ -392,245 +472,223 @@ const BLOCK_REGISTRY = [
   },
   {
     id: 6,
-    name: "Pedra",
-    desc: "Bloco de pedra resistente",
+    name: "Bloco Seta →",
+    desc: "Bloco com seta indicando direção",
     category: "estrutura",
-    tags: ["pedra", "stone", "rock", "solido", "duro"],
-    previewStyle: "background:#404040; border-color:#88888840;",
-    previewLabel: null,
+    tags: ["seta", "arrow", "direcao", "right", "direita"],
+    previewStyle: "background:#203050; border-color:#4080c040;",
+    previewLabel: { text: "→", color: "#4080c0" },
   },
   {
     id: 7,
-    name: "Madeira",
-    desc: "Bloco de madeira",
+    name: "Bloco Ciano",
+    desc: "Bloco ciano (água/vidro)",
     category: "estrutura",
-    tags: ["madeira", "wood", "log", "plataforma"],
-    previewStyle: "background:#5a3010; border-color:#a0603040;",
+    tags: ["ciano", "cyan", "agua", "water", "vidro", "glass", "azul"],
+    previewStyle: "background:#104050; border-color:#40c0d040;",
     previewLabel: null,
   },
   {
     id: 8,
-    name: "Metal",
-    desc: "Bloco metálico sólido",
+    name: "Bloco Branco",
+    desc: "Bloco branco sólido",
     category: "estrutura",
-    tags: ["metal", "aco", "ferro", "solido", "duro"],
-    previewStyle: "background:#2a3040; border-color:#6080b040;",
+    tags: ["branco", "white", "solido", "limpo"],
+    previewStyle: "background:#b0b0b0; border-color:#ffffff40;",
     previewLabel: null,
   },
   {
     id: 9,
-    name: "Terra",
-    desc: "Bloco de terra",
+    name: "Bloco Cinza",
+    desc: "Bloco cinza claro",
     category: "estrutura",
-    tags: ["terra", "dirt", "solo", "chao"],
-    previewStyle: "background:#3d2b14; border-color:#7a553040;",
+    tags: ["cinza", "gray", "grey", "claro", "pedra"],
+    previewStyle: "background:#707070; border-color:#b0b0b040;",
     previewLabel: null,
   },
   {
     id: 10,
-    name: "Grama",
-    desc: "Bloco de grama",
+    name: "Pedra",
+    desc: "Bloco de pedra escura",
     category: "estrutura",
-    tags: ["grama", "grass", "verde", "chao", "topo"],
-    previewStyle: "background:#1a4010; border-color:#40a02040;",
+    tags: ["pedra", "stone", "rock", "cinza", "escuro", "solido"],
+    previewStyle: "background:#303030; border-color:#70707040;",
     previewLabel: null,
   },
   {
     id: 11,
     name: "Areia",
-    desc: "Bloco de areia",
+    desc: "Bloco de areia/terra",
     category: "estrutura",
-    tags: ["areia", "sand", "praia", "deserto"],
+    tags: ["areia", "sand", "terra", "dirt", "amarelo", "solo"],
     previewStyle: "background:#8a7040; border-color:#c0a86840;",
     previewLabel: null,
   },
   {
     id: 12,
-    name: "Nuvem",
-    desc: "Plataforma de nuvem",
+    name: "Bloco Laranja",
+    desc: "Bloco laranja texturizado",
     category: "estrutura",
-    tags: ["nuvem", "cloud", "ceu", "plataforma", "flutuante"],
-    previewStyle: "background:#c0c0d0; border-color:#e0e0f040;",
-    previewLabel: { text: "☁", color: "#8888aa" },
-  },
-
-  // ── INTERAÇÃO ────────────────────────────
-  {
-    id: 3,
-    name: "Lucky Block",
-    desc: "Bloco surpresa com item",
-    category: "interacao",
-    tags: ["lucky", "sorte", "surpresa", "item", "bonus", "caixa"],
-    previewStyle: "background:#7a5800; border-color:#e8b84040;",
-    previewLabel: { text: "?", color: "#e8b840" },
-  },
-  {
-    id: 5,
-    name: "Bloco de Gelo",
-    desc: "Superfície escorregadia",
-    category: "interacao",
-    tags: ["gelo", "ice", "frio", "especial", "deslizante", "escorregadio"],
-    previewStyle: "background:#2a6080; border-color:#7ecfef40;",
-    previewLabel: { text: "!", color: "#7ecfef" },
+    tags: ["laranja", "orange", "textura", "solido"],
+    previewStyle: "background:#804020; border-color:#c0604040;",
+    previewLabel: null,
   },
   {
     id: 13,
-    name: "Checkpoint",
-    desc: "Bandeira de checkpoint",
-    category: "interacao",
-    tags: ["checkpoint", "bandeira", "flag", "save", "salvar", "ponto", "meio"],
-    previewStyle: "background:#1a4020; border-color:#50c06040;",
-    previewLabel: { text: "⚑", color: "#50c060" },
+    name: "Bloco Laranja 2",
+    desc: "Variante do bloco laranja",
+    category: "estrutura",
+    tags: ["laranja", "orange", "variante", "solido"],
+    previewStyle: "background:#804020; border-color:#e0703040;",
+    previewLabel: null,
   },
   {
     id: 14,
-    name: "Checkpoint Ativo",
-    desc: "Bandeira de checkpoint ativada",
-    category: "interacao",
-    tags: ["checkpoint", "bandeira", "flag", "ativo", "salvo", "dourado"],
-    previewStyle: "background:#1a4020; border-color:#f0c02040;",
-    previewLabel: { text: "⚐", color: "#f0c020" },
+    name: "Bloco Musical",
+    desc: "Bloco com nota musical",
+    category: "estrutura",
+    tags: ["musica", "music", "nota", "som", "especial"],
+    previewStyle: "background:#202050; border-color:#6060c040;",
+    previewLabel: { text: "♪", color: "#8080e0" },
   },
   {
     id: 15,
-    name: "Moeda",
-    desc: "Moeda coletável",
-    category: "interacao",
-    tags: ["moeda", "coin", "ouro", "coletavel", "pontos"],
-    previewStyle: "background:#806000; border-color:#f0c00040;",
-    previewLabel: { text: "¢", color: "#f0c000" },
-  },
-  {
-    id: 16,
-    name: "Mola",
-    desc: "Impulsiona o jogador para cima",
-    category: "interacao",
-    tags: ["mola", "spring", "pulo", "salto", "impulso"],
-    previewStyle: "background:#404020; border-color:#c0c04040;",
-    previewLabel: { text: "↑", color: "#c0c040" },
-  },
-  {
-    id: 17,
-    name: "Porta",
-    desc: "Porta de passagem de cena",
-    category: "interacao",
-    tags: ["porta", "door", "passagem", "saida", "entrada", "cena"],
-    previewStyle: "background:#402810; border-color:#a0684040;",
-    previewLabel: { text: "▭", color: "#a06840" },
-  },
-  {
-    id: 18,
-    name: "Chave",
-    desc: "Chave para abrir portas",
-    category: "interacao",
-    tags: ["chave", "key", "porta", "destrancar", "coletavel"],
-    previewStyle: "background:#604010; border-color:#e0b03040;",
-    previewLabel: { text: "⚿", color: "#e0b030" },
+    name: "Bloco Rosto",
+    desc: "Bloco com rosto/smiley",
+    category: "estrutura",
+    tags: ["rosto", "face", "smiley", "emoticon", "decoracao"],
+    previewStyle: "background:#303030; border-color:#e0e0a040;",
+    previewLabel: { text: "☺", color: "#e0e0a0" },
   },
 
-  // ── PERIGO ───────────────────────────────
+  // ── INTERACTIVES ─────────────────────────
   {
-    id: 19,
-    name: "Espinho",
-    desc: "Mata o jogador ao tocar",
-    category: "perigo",
-    tags: ["espinho", "spike", "morte", "perigo", "dano", "armadilha"],
-    previewStyle: "background:#401010; border-color:#c0303040;",
-    previewLabel: { text: "▲", color: "#c03030" },
+    id: 40,
+    name: "Play",
+    desc: "Botão play — ativa mecanismo",
+    category: "interacao",
+    tags: ["play", "botao", "ativar", "iniciar", "triangulo"],
+    previewStyle: "background:#001840; border-color:#4080ff40;",
+    previewLabel: { text: "▶", color: "#4080ff" },
   },
   {
-    id: 20,
-    name: "Lava",
-    desc: "Lava — morte instantânea",
-    category: "perigo",
-    tags: ["lava", "fogo", "quente", "morte", "perigo", "derrete"],
-    previewStyle: "background:#601800; border-color:#ff480040;",
-    previewLabel: { text: "▓", color: "#ff4800" },
+    id: 41,
+    name: "Pause",
+    desc: "Botão pause — pausa mecanismo",
+    category: "interacao",
+    tags: ["pause", "pausa", "botao", "parar"],
+    previewStyle: "background:#002040; border-color:#40a0ff40;",
+    previewLabel: { text: "⏸", color: "#40a0ff" },
   },
   {
-    id: 21,
-    name: "Fogo",
-    desc: "Chama que causa dano",
-    category: "perigo",
-    tags: ["fogo", "fire", "chama", "queimar", "dano", "perigo"],
-    previewStyle: "background:#601000; border-color:#ff600040;",
-    previewLabel: { text: "↑", color: "#ff6000" },
+    id: 42,
+    name: "Play Grande",
+    desc: "Botão play grande",
+    category: "interacao",
+    tags: ["play", "grande", "botao", "ativar"],
+    previewStyle: "background:#001030; border-color:#3060c040;",
+    previewLabel: { text: "▶", color: "#3060c0" },
   },
   {
-    id: 22,
-    name: "Serra",
-    desc: "Serra giratória perigosa",
+    id: 43,
+    name: "Pizza",
+    desc: "Item pizza — recupera vida",
+    category: "interacao",
+    tags: ["pizza", "comida", "vida", "cura", "item", "coletavel"],
+    previewStyle: "background:#401000; border-color:#e0603040;",
+    previewLabel: { text: "🍕", color: "#e06030" },
+  },
+  {
+    id: 44,
+    name: "Seta Vermelha",
+    desc: "Seta vermelha — indica direção ou perigo",
+    category: "interacao",
+    tags: ["seta", "vermelha", "direcao", "perigo", "arrow"],
+    previewStyle: "background:#401010; border-color:#e0303040;",
+    previewLabel: { text: "▶", color: "#e03030" },
+  },
+  {
+    id: 45,
+    name: "Caveira",
+    desc: "Caveira — zona de morte ou perigo extremo",
     category: "perigo",
-    tags: ["serra", "saw", "lamina", "corte", "morte", "perigo"],
-    previewStyle: "background:#303030; border-color:#90909040;",
-    previewLabel: { text: "⚙", color: "#909090" },
+    tags: ["caveira", "skull", "morte", "perigo", "kill", "instantaneo"],
+    previewStyle: "background:#101010; border-color:#c0c0c040;",
+    previewLabel: { text: "☠", color: "#c0c0c0" },
+  },
+  {
+    id: 46,
+    name: "Estrela",
+    desc: "Estrela — item especial de bônus",
+    category: "interacao",
+    tags: ["estrela", "star", "bonus", "especial", "coletavel", "pontos"],
+    previewStyle: "background:#404000; border-color:#e0e00040;",
+    previewLabel: { text: "★", color: "#e0e000" },
   },
 
-  // ── MOVIMENTO ────────────────────────────
+  // ── INIMIGOS ─────────────────────────────
   {
-    id: 23,
-    name: "Plat. Móvel",
-    desc: "Plataforma que se move",
-    category: "movimento",
-    tags: ["plataforma", "movel", "moving", "platform", "desloca", "vai"],
-    previewStyle: "background:#203050; border-color:#4080c040;",
-    previewLabel: { text: "↔", color: "#4080c0" },
+    id: 50,
+    name: "Chapeleira",
+    desc: "Inimigo Chapeleira — patrulha o terreno",
+    category: "inimigos",
+    tags: ["chapeleira", "inimigo", "enemy", "chapeu", "hat", "patrulha"],
+    previewStyle: "background:#1a3050; border-color:#4080c040;",
+    previewLabel: { text: "C", color: "#4080c0" },
   },
   {
-    id: 24,
-    name: "Esteira ◄",
-    desc: "Esteira que empurra à esquerda",
-    category: "movimento",
-    tags: ["esteira", "conveyor", "esquerda", "left", "empurra", "desloca"],
-    previewStyle: "background:#202040; border-color:#6060c040;",
-    previewLabel: { text: "◄", color: "#6060c0" },
+    id: 51,
+    name: "Erick",
+    desc: "Erick — personagem NPC/inimigo",
+    category: "inimigos",
+    tags: ["erick", "inimigo", "enemy", "npc", "personagem"],
+    previewStyle: "background:#1a3020; border-color:#40a04040;",
+    previewLabel: { text: "Er", color: "#40a040" },
   },
   {
-    id: 25,
-    name: "Esteira ►",
-    desc: "Esteira que empurra à direita",
-    category: "movimento",
-    tags: ["esteira", "conveyor", "direita", "right", "empurra", "desloca"],
-    previewStyle: "background:#202040; border-color:#c0606040;",
-    previewLabel: { text: "►", color: "#c06060" },
-  },
-
-  // ── DECORAÇÃO ────────────────────────────
-  {
-    id: 26,
-    name: "Arbusto",
-    desc: "Decoração — arbusto",
-    category: "decoracao",
-    tags: ["arbusto", "bush", "planta", "verde", "decoracao", "fundo"],
-    previewStyle: "background:#103010; border-color:#30a03040;",
-    previewLabel: { text: "🌿", color: "#30a030" },
+    id: 52,
+    name: "Goomberick",
+    desc: "Goomberick — inimigo básico com óculos",
+    category: "inimigos",
+    tags: ["goomberick", "goomba", "inimigo", "enemy", "oculos", "basico"],
+    previewStyle: "background:#2a2a10; border-color:#a0a03040;",
+    previewLabel: { text: "G", color: "#a0a030" },
   },
   {
-    id: 27,
-    name: "Flor",
-    desc: "Decoração — flor",
-    category: "decoracao",
-    tags: ["flor", "flower", "planta", "decoracao", "colorido"],
-    previewStyle: "background:#401040; border-color:#e040e040;",
-    previewLabel: { text: "✿", color: "#e040e0" },
+    id: 53,
+    name: "Pranta",
+    desc: "Pranta — planta inimiga que ataca verticalmente",
+    category: "inimigos",
+    tags: ["pranta", "planta", "plant", "inimigo", "enemy", "vertical", "morde"],
+    previewStyle: "background:#0a2010; border-color:#30a03040;",
+    previewLabel: { text: "🌱", color: "#30a030" },
   },
   {
-    id: 28,
-    name: "Cogumelo",
-    desc: "Decoração — cogumelo",
-    category: "decoracao",
-    tags: ["cogumelo", "mushroom", "fungo", "decoracao"],
-    previewStyle: "background:#401010; border-color:#e0404040;",
-    previewLabel: { text: "🍄", color: "#e04040" },
+    id: 54,
+    name: "Linux",
+    desc: "Linux — pinguim inimigo (Tux)",
+    category: "inimigos",
+    tags: ["linux", "pinguim", "tux", "inimigo", "enemy", "penguin"],
+    previewStyle: "background:#101828; border-color:#2060a040;",
+    previewLabel: { text: "🐧", color: "#2060a0" },
   },
   {
-    id: 29,
-    name: "Placa",
-    desc: "Placa de aviso decorativa",
-    category: "decoracao",
-    tags: ["placa", "sign", "aviso", "decoracao", "texto", "mensagem"],
-    previewStyle: "background:#302010; border-color:#a0804040;",
-    previewLabel: { text: "!", color: "#a08040" },
+    id: 55,
+    name: "Bullet",
+    desc: "Bullet — projétil inimigo",
+    category: "inimigos",
+    tags: ["bullet", "bala", "projetil", "tiro", "inimigo", "perigo"],
+    previewStyle: "background:#401800; border-color:#e0500040;",
+    previewLabel: { text: "•", color: "#e05000" },
+  },
+  {
+    id: 56,
+    name: "Pellizzola",
+    desc: "Pellizzola — personagem jogável (referência visual)",
+    category: "inimigos",
+    tags: ["pellizzola", "jogador", "player", "principal", "personagem"],
+    previewStyle: "background:#302010; border-color:#a0603040;",
+    previewLabel: { text: "P", color: "#a06030" },
   },
 ];
 
@@ -679,16 +737,14 @@ function renderBlockGrid() {
     return;
   }
 
-  // Agrupa por categoria se mostrando "todos" sem busca
   if (activeCategory === "todos" && !searchQuery.trim()) {
-    const categoryOrder = ["logica", "estrutura", "interacao", "perigo", "movimento", "decoracao"];
+    const categoryOrder  = ["logica", "estrutura", "interacao", "perigo", "inimigos"];
     const categoryLabels = {
-      logica:     "Lógica",
-      estrutura:  "Estrutura",
-      interacao:  "Interação",
-      perigo:     "Perigo",
-      movimento:  "Movimento",
-      decoracao:  "Decoração",
+      logica:    "Lógica",
+      estrutura: "Estrutura",
+      interacao: "Interação",
+      perigo:    "Perigo",
+      inimigos:  "Inimigos",
     };
 
     categoryOrder.forEach(cat => {
@@ -700,14 +756,12 @@ function renderBlockGrid() {
       header.textContent = categoryLabels[cat];
       grid.appendChild(header);
 
-      // Subgrid independente para cada categoria
       const subgrid = document.createElement("div");
       subgrid.className = "block-subgrid";
       catBlocks.forEach(block => subgrid.appendChild(makeBlockCell(block)));
       grid.appendChild(subgrid);
     });
   } else {
-    // Sem agrupamento: subgrid único
     const subgrid = document.createElement("div");
     subgrid.className = "block-subgrid";
     blocks.forEach(block => subgrid.appendChild(makeBlockCell(block)));
@@ -720,6 +774,14 @@ function makeBlockCell(block) {
   cell.className = "block-cell" + (selectedTile === block.id ? " active" : "");
   cell.dataset.id = block.id;
 
+  // Badge de tipo para inimigos
+  if (block.category === "inimigos") {
+    const badge = document.createElement("div");
+    badge.className = "entity-badge";
+    badge.textContent = "ENT";
+    cell.appendChild(badge);
+  }
+
   const preview = document.createElement("div");
   preview.className = "cell-preview";
   preview.style.cssText = block.previewStyle;
@@ -727,18 +789,17 @@ function makeBlockCell(block) {
   if (sprites[block.id]) {
     const img = document.createElement("img");
     img.src = sprites[block.id].src;
-    img.style.cssText = "width:100%; height:100%; object-fit:cover; border-radius:3px; display:block;";
+    img.style.cssText = "width:100%; height:100%; object-fit:cover; border-radius:3px; display:block; image-rendering:pixelated;";
     preview.innerHTML = "";
     preview.appendChild(img);
   } else if (block.previewLabel) {
-    preview.innerHTML = `<span style="color:${block.previewLabel.color}; font-size:12px;">${block.previewLabel.text}</span>`;
+    preview.innerHTML = `<span style="color:${block.previewLabel.color}; font-size:11px;">${block.previewLabel.text}</span>`;
   }
 
   const name = document.createElement("span");
   name.className = "cell-name";
   name.textContent = block.name;
 
-  // Tooltip com descrição
   cell.title = block.desc;
 
   const favBtn = document.createElement("button");
@@ -778,11 +839,52 @@ document.getElementById("block-search").addEventListener("input", e => {
   renderBlockGrid();
 });
 
+// ── ERASER ────────────────────────────────
 document.getElementById("eraser-item").addEventListener("click", () => {
   selectedTile = TILE_ID_ERASER;
   document.getElementById("eraser-item").classList.add("active");
   renderBlockGrid();
 });
+
+// ── BACKGROUND PICKER ─────────────────────
+function renderBgPicker() {
+  const picker = document.getElementById("bg-picker");
+  if (!picker) return;
+  picker.innerHTML = "";
+  const current = scene().background || "dark";
+  BACKGROUNDS.forEach(bg => {
+    const btn = document.createElement("button");
+    btn.className = "bg-btn" + (bg.id === current ? " active" : "");
+    btn.title = bg.label;
+    btn.dataset.bgId = bg.id;
+
+    // Preview visual do fundo
+    const swatch = document.createElement("div");
+    swatch.className = "bg-swatch";
+    if (bg.gradient) {
+      swatch.style.background = bg.gradient;
+    } else {
+      swatch.style.background = bg.color;
+    }
+
+    const lbl = document.createElement("span");
+    lbl.className = "bg-label";
+    lbl.textContent = bg.label;
+
+    btn.appendChild(swatch);
+    btn.appendChild(lbl);
+
+    btn.addEventListener("click", () => {
+      scene().background = bg.id;
+      markChanged();
+      draw();
+      renderBgPicker();
+      renderScenePreviews();
+    });
+
+    picker.appendChild(btn);
+  });
+}
 
 // ── ADD SCENE ─────────────────────────────
 document.getElementById("addScene").addEventListener("click", () => {
@@ -793,6 +895,7 @@ document.getElementById("addScene").addEventListener("click", () => {
   draw();
   updateStatus();
   renderScenePreviews();
+  renderBgPicker();
 });
 
 // ── STATUS ────────────────────────────────
@@ -812,11 +915,20 @@ function updateStatus() {
   stEnd.className     = `status-badge ${sc.endPos   ? "badge-on" : "badge-off"}`;
 
   let count = 0;
+  let enemies = 0;
   for (let y = 0; y < ROWS; y++)
-    for (let x = 0; x < COLS; x++)
-      if (sc.map[y][x] !== EMPTY) count++;
-  stTiles.textContent  = count;
-  stScenes.textContent = scenes.length;
+    for (let x = 0; x < COLS; x++) {
+      const id = sc.map[y][x];
+      if (id !== EMPTY) {
+        count++;
+        if (id >= 50) enemies++;
+      }
+    }
+  stTiles.textContent   = count;
+  stScenes.textContent  = scenes.length;
+
+  const stEnemies = document.getElementById("st-enemies");
+  if (stEnemies) stEnemies.textContent = enemies;
 
   const addSceneBtn = document.getElementById("addScene");
   addSceneBtn.style.display = scenes.length >= MAX_SCENES ? "none" : "";
@@ -834,7 +946,9 @@ modalCancel.addEventListener("click", () => { modalOverlay.classList.remove("ope
 modalOverlay.addEventListener("click", e => { if (e.target === modalOverlay) modalOverlay.classList.remove("open"); });
 
 modalConfirm.addEventListener("click", () => {
+  const bg = scene().background; // Preserva fundo ao limpar
   scenes[currentScene] = makeEmptyScene();
+  scenes[currentScene].background = bg;
   markChanged();
   draw();
   updateStatus();
@@ -859,6 +973,7 @@ document.getElementById("modal-remove-confirm").addEventListener("click", () => 
   draw();
   updateStatus();
   renderScenePreviews();
+  renderBgPicker();
   modalRemoveOverlay.classList.remove("open");
   sceneToRemove = null;
 });
@@ -897,6 +1012,9 @@ document.getElementById("saveMap").addEventListener("click", async () => {
 
   const dataStr = "[\n" + scenesData.map(s => "            " + s).join(",\n") + "\n        ]";
 
+  // Salva também os backgrounds de cada cena
+  const bgData = JSON.stringify(scenes.map(sc => sc.background || "dark"));
+
   const json =
 `{
     "level": {
@@ -905,7 +1023,8 @@ document.getElementById("saveMap").addEventListener("click", async () => {
             "description": ${JSON.stringify(levelDescription)},
             "author": ${JSON.stringify(levelAuthor)}
         },
-        "data": ${dataStr}
+        "data": ${dataStr},
+        "backgrounds": ${bgData}
     }
 }`;
 
@@ -942,6 +1061,7 @@ function applyLevelJson(jsonText) {
 
   const info = parsed?.level?.information;
   const data = parsed?.level?.data;
+  const bgs  = parsed?.level?.backgrounds;
 
   if (!Array.isArray(data)) {
     alert("Erro: formato de nível inválido (campo 'data' ausente ou incorreto).");
@@ -954,8 +1074,11 @@ function applyLevelJson(jsonText) {
 
   const scenesRaw = Array.isArray(data[0]) ? data : [data];
 
-  scenes = scenesRaw.map(rawScene => {
+  scenes = scenesRaw.map((rawScene, sceneIdx) => {
     const sc = makeEmptyScene();
+    // Restaura fundo salvo
+    if (Array.isArray(bgs) && bgs[sceneIdx]) sc.background = bgs[sceneIdx];
+
     rawScene.forEach((entry, i) => {
       const x = i % COLS;
       const y = Math.floor(i / COLS);
@@ -974,6 +1097,7 @@ function applyLevelJson(jsonText) {
   draw();
   updateStatus();
   renderScenePreviews();
+  renderBgPicker();
 }
 
 document.getElementById("openMap").addEventListener("click", () => {
@@ -1030,4 +1154,5 @@ sizeCanvas();
 updateStatus();
 renderBlockGrid();
 renderScenePreviews();
+renderBgPicker();
 loadSprites();
