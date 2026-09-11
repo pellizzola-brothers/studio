@@ -292,22 +292,24 @@ App.review = function ()
 {
 	const l = App.doc.json.level;
 	const w = [];
-	let starts = 0, ends = 0;
+	let ends = 0;
 
 	const knownblocks = new Set(BLOCKS.map(b => b.id));
 	const unknownblocks = new Set();
 	for (const id of Grid.a) {
-		if (id === 1) starts++;
-		else if (id === 4) ends++;
+		if (id === 4) ends++;
 		if (id !== 0 && !knownblocks.has(id))
 			unknownblocks.add(id);
 	}
 	for (const id of unknownblocks)
 		w.push('block id ' + String(id).padStart(3, '0') + ' is not in this build\'s catalog');
-	if (starts === 0)
-		w.push('no start block placed (tile 1 is required)');
-	else if (starts > 1)
-		w.push(starts + ' start blocks placed; tile 1 must be unique');
+
+	const players = l.entities.filter(s => s.def === PLAYER_DEF).length;
+	if (players === 0)
+		w.push('no player placed (the spawn point is required)');
+	else if (players > 1)
+		w.push(players + ' player entities placed; only one is allowed');
+
 	if (ends === 0)
 		w.push('no end block placed (tile 4 is required)');
 	else if (ends > 1)

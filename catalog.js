@@ -17,8 +17,13 @@ const B = 100;		/* world pixels per block; game/src/main.c draws 100x100 */
 const W = 540;		/* entries per block_data row */
 const H = 12;		/* rows in a fresh level - a product decision, not a format one */
 
+/* Tile id 1 ("start") is retired: the player's spawn is the singleton
+ * `player` entity below, not a tile. The id stays reserved and unassigned -
+ * never handed to a new block - the same way ITEMTILE's 43-46 do below, so
+ * migrate()'s PLAYERTILE conversion (lvl.js) always knows what it is lifting. */
+const PLAYERTILE = 1;
+
 const BLOCKS = [
-	{id:  1, name: 'start',        file: 'blocks/start_level.png'},
 	{id:  2, name: 'brick',        file: 'blocks/bricks.png'},
 	{id:  3, name: 'excla',        file: 'blocks/normal_excla_block1.png'},
 	{id:  4, name: 'end',          file: 'blocks/end_level.png'},
@@ -55,7 +60,12 @@ const ITEMTILE = {43: 'pizza', 44: 'coin', 45: 'soda', 46: 'star'};
 /* Built-in entity definitions.  `script` is a bare name: the game resolves it
  * against its own script table.  Custom definitions instead carry a path into
  * the level's own scripts/ directory. */
+const PLAYER_DEF = 'player';	/* singleton: at most one entity may ever use it */
 const ENTS = [
+	/* leandro.png - confirmed the canonical player-character sprite via
+	 * textures/ui/main_menu.png's own labelled callout (CLAUDE.md's build
+	 * icon derivation reasons the same way). */
+	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/leandro.png'},
 	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira.png'},
 	{id: 'abu',        script: 'abu_ai',        file: 'enemies/abú.png'},
 	{id: 'gombacrack', script: 'gombacrack_ai', file: 'enemies/gombacrack.png'},
@@ -107,4 +117,4 @@ function ready(im) { return im && im.complete && im.naturalWidth > 0; }
 /* lvl.js pulls the tables in from the main process; the renderer loads this as
  * a plain script and picks the same names up as globals. */
 if (typeof module !== 'undefined' && module.exports)
-	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE};
+	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, PLAYERTILE, PLAYER_DEF};

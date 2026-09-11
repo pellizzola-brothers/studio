@@ -98,7 +98,7 @@ function review(doc)
 {
 	const l = doc.json.level;
 	const w = [];
-	let starts = 0, ends = 0;
+	let ends = 0;
 
 	/* VIS-17: a 3-digit id validate() already accepts as *shape*-valid can
 	 * still name no block this build's catalog.js knows about (a level
@@ -109,17 +109,19 @@ function review(doc)
 	const unknownblocks = new Set();
 	for (const row of l.block_data)
 		for (const id of row) {
-			if (id === '001') starts++;
-			else if (id === '004') ends++;
+			if (id === '004') ends++;
 			if (id !== '000' && !knownblocks.has(id))
 				unknownblocks.add(id);
 		}
 	for (const id of unknownblocks)
 		w.push('block id ' + id + ' is not in this build\'s catalog');
-	if (starts === 0)
-		w.push('no start block placed (tile 1 is required)');
-	else if (starts > 1)
-		w.push(starts + ' start blocks placed; tile 1 must be unique');
+
+	const players = l.entities.filter(s => s.def === cat.PLAYER_DEF).length;
+	if (players === 0)
+		w.push('no player placed (the spawn point is required)');
+	else if (players > 1)
+		w.push(players + ' player entities placed; only one is allowed');
+
 	if (ends === 0)
 		w.push('no end block placed (tile 4 is required)');
 	else if (ends > 1)
@@ -182,7 +184,35 @@ function migrate(j)
 		l.backgrounds = [BG[0]];
 
 	items(l);
+	player(l);
 	return j;
+}
+
+/* Legacy levels marked the spawn as a block (tile 1, "start"). Lift the
+ * first one into the singleton `player` entity the schema now uses instead;
+ * any further ones just get cleared rather than becoming a second entity,
+ * since only one player is ever allowed (catalog.js's PLAYER_DEF). */
+function player(l)
+{
+	let placed = l.entities.some(e => e.def === cat.PLAYER_DEF);
+
+	for (let y = 0; y < l.block_data.length; y++) {
+		const row = l.block_data[y];
+		for (let x = 0; x < cat.W; x++) {
+			if (+row[x] !== cat.PLAYERTILE)
+				continue;
+			row[x] = '000';
+			if (placed)
+				continue;
+			if (!l.entity_definitions.some(d => d.id === cat.PLAYER_DEF))
+				l.entity_definitions.push({
+					id: cat.PLAYER_DEF,
+					script: cat.ENTS.find(v => v.id === cat.PLAYER_DEF).script
+				});
+			l.entities.push({def: cat.PLAYER_DEF, pos: [x * cat.B, y * cat.B]});
+			placed = true;
+		}
+	}
 }
 
 /* Lift any leftover interactive tiles out of block_data and into entities. */

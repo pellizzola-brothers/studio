@@ -410,6 +410,8 @@ function entityview(p, e)
 
 	$('p_def').onchange = ev => Undo.act(() => {
 		const old = e.def;
+		if (ev.target.value === PLAYER_DEF)
+			unplaceplayer();
 		e.def = ev.target.value;
 		App.usedef(e.def);
 		prunedef(old);

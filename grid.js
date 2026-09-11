@@ -106,6 +106,18 @@ function watchcontrast()
 
 function elist() { return App.doc.json.level.entities; }
 
+/* PLAYER_DEF (catalog.js) is a singleton - the level's one spawn point -
+ * so every path that is about to add or retype an entity into it calls this
+ * first, to drop whichever entity already holds that def. That turns
+ * "place a second one" into "move the existing one" instead of a duplicate. */
+function unplaceplayer()
+{
+	const es = elist();
+	const i = es.findIndex(e => e.def === PLAYER_DEF);
+	if (i >= 0)
+		es.splice(i, 1);
+}
+
 /* Which entity, if any, owns cell (cx, cy).  Levels hold tens of entities, so
  * a scan beats maintaining a second index that can fall out of sync. */
 function entat(cx, cy)
@@ -682,7 +694,15 @@ function drawbg(g, cw)
 	const z = Grid.cam.z * Grid.dpr;
 	const ox = Grid.cam.x * z, oy = Grid.cam.y * z;
 	const lh = Grid.h * B * z;
-	const tw = im.naturalWidth * lh / im.naturalHeight;
+
+	/* Rounded to the nearest block width in world space, not used as-is: the
+	 * image's own aspect ratio has no reason to land on a multiple of B, so
+	 * an unrounded repeat drifts across the grid and its seam eventually
+	 * falls mid-block instead of between two. Rounding first keeps every
+	 * repeat boundary a multiple of B, so it lines up with the grid ex[]
+	 * already snaps to, at any zoom or pan. */
+	const twWorld = Math.max(B, Math.round(im.naturalWidth * (Grid.h * B) / im.naturalHeight / B) * B);
+	const tw = twWorld * z;
 	const end = Math.min(cw, W * B * z - ox);
 
 	if (tw < 1)
@@ -846,6 +866,8 @@ Grid.duplicate = function ()
 
 	Undo.act(() => {
 		App.usedef(e.def);
+		if (e.def === PLAYER_DEF)
+			unplaceplayer();
 		elist().push({def: e.def, pos: pos});
 		Grid.sel = elist().length - 1;
 		setblock(pos[0] / B, pos[1] / B, 0);
@@ -876,6 +898,8 @@ Grid.kpaint = function ()
 	if (Grid.tool.kind === 'entity') {
 		Undo.act(() => {
 			App.usedef(Grid.tool.id);
+			if (Grid.tool.id === PLAYER_DEF)
+				unplaceplayer();
 			elist().push({def: Grid.tool.id, pos: [c.x * B, c.y * B]});
 			Grid.sel = elist().length - 1;
 			setblock(c.x, c.y, 0);
@@ -963,6 +987,8 @@ function ondown(ev)
 			return;
 		Undo.begin('place entity');
 		App.usedef(Grid.tool.id);
+		if (Grid.tool.id === PLAYER_DEF)
+			unplaceplayer();
 		elist().push({def: Grid.tool.id, pos: [c.x * B, c.y * B]});
 		Grid.sel = elist().length - 1;
 		Grid.moving = true;
