@@ -323,13 +323,67 @@ function read(p)
  * total, under the same threshold, so unzipSync is unconverted.) write()
  * now returns a Promise; every caller (main.js) already awaits it inside an
  * async handler. */
+const ROWGROUP = 9;	/* block_data entries sharing one written line */
+
+/* One block_data row, JSON.stringify's own indent=4 style would put each of
+ * its 540 entries on its own line - thousands of lines per level, unreadable
+ * in a diff. Grouped ROWGROUP to a line instead; the first group sits right
+ * after the row's own '[' rather than alone on the next line, and every
+ * later line hangs indented one column past it, under that first entry. */
+function formatrow(row, indent)
+{
+	const cont = ' '.repeat(indent + 1);
+	const groups = [];
+	for (let i = 0; i < row.length; i += ROWGROUP)
+		groups.push(row.slice(i, i + ROWGROUP).map(id => JSON.stringify(id)).join(', '));
+	return '[' + groups.join(',\n' + cont) + ']';
+}
+
+/* JSON.stringify(doc.json, null, 4) for everything else, unchanged - only
+ * block_data's rows and each entity's pos get a hand-built layout: a row
+ * groups ROWGROUP to a line (formatrow(), above), and pos - always just
+ * [x, y] - is kept on the one line entirely, the same way a hand-edited
+ * level would write a coordinate pair rather than spreading it over three
+ * lines. Both are stringified as placeholder markers first (so information/
+ * entity_definitions/... keep exactly the formatting JSON.stringify already
+ * gives them), then every marker is swapped for its own real text - reading
+ * a row marker's own column back out of the stringified document is what
+ * tells formatrow() how far to hang its continuation lines. */
+function formatlevel(j)
+{
+	const rows = j.level.block_data;
+	const ents = j.level.entities;
+	const rowmarks = rows.map((_, i) => '@@BLOCKROW' + i + '@@');
+	const posmarks = ents.map((_, i) => '@@ENTPOS' + i + '@@');
+	const shim = {
+		...j,
+		level: {
+			...j.level,
+			block_data: rowmarks,
+			entities: ents.map((e, i) => ({...e, pos: posmarks[i]}))
+		}
+	};
+	let s = JSON.stringify(shim, null, 4);
+
+	rows.forEach((row, i) => {
+		const token = '"' + rowmarks[i] + '"';
+		const at = s.indexOf(token);
+		const indent = at - s.lastIndexOf('\n', at) - 1;
+		s = s.replace(token, formatrow(row, indent));
+	});
+	ents.forEach((e, i) => {
+		s = s.replace('"' + posmarks[i] + '"', '[' + e.pos.join(', ') + ']');
+	});
+	return s;
+}
+
 function write(p, doc)
 {
 	const errs = validate(doc.json);
 	if (errs.length)
 		fail('refusing to save an invalid level:', errs);
 
-	const files = {'level.json': strToU8(JSON.stringify(doc.json, null, 4))};
+	const files = {'level.json': strToU8(formatlevel(doc.json))};
 	for (const k in doc.scripts)
 		files[k] = strToU8(doc.scripts[k]);
 	for (const k in doc.midi)
