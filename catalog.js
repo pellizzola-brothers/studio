@@ -3,10 +3,10 @@
  * Block ids follow the contract documented in textures/README.md; the game
  * reads the same table, so an id may never be reused or renumbered here alone.
  *
- * Deliberately absent: blocks/lucky_block.png and the six interactives/*_flag
- * sprites.  They ship in the texture library but textures/README.md assigns
- * them no id, and inventing one here would silently disagree with the game.
- * Give them ids in all three repos at once, then add them below. */
+ * Deliberately absent: the six interactives/*_flag sprites. They ship in the
+ * texture library but textures/README.md assigns them no id, and inventing
+ * one here would silently disagree with the game. Give them ids in all three
+ * repos at once, then add them below. */
 'use strict';
 
 /* PLACEHOLDER, tex and ready are consumed by grid.js and panel.js in the
@@ -17,31 +17,22 @@ const B = 100;		/* world pixels per block; game/src/main.c draws 100x100 */
 const W = 540;		/* entries per block_data row */
 const H = 12;		/* rows in a fresh level - a product decision, not a format one */
 
-/* Tile id 1 ("start") is retired: the player's spawn is the singleton
- * `player` entity below, not a tile. The id stays reserved and unassigned -
- * never handed to a new block - the same way ITEMTILE's 43-46 do below, so
- * migrate()'s PLAYERTILE conversion (lvl.js) always knows what it is lifting. */
-const PLAYERTILE = 1;
-
 const BLOCKS = [
-	{id:  2, name: 'brick',        file: 'blocks/bricks.png'},
-	{id:  3, name: 'excla',        file: 'blocks/normal_excla_block1.png'},
-	{id:  4, name: 'end',          file: 'blocks/end_level.png'},
-	{id:  5, name: 'arrow sign',   file: 'blocks/arrow_sign.png'},
-	{id:  6, name: 'bronze',       file: 'blocks/bronze_block.png'},
-	{id:  7, name: 'cement',       file: 'blocks/cement.png'},
-	{id:  8, name: 'diamond',      file: 'blocks/diamond_block.png'},
-	{id:  9, name: 'esponja',      file: 'blocks/esponja.png'},
-	{id: 10, name: 'floor',        file: 'blocks/floor_block.png'},
-	{id: 11, name: 'frozen excla', file: 'blocks/frozen_excla_block1.png'},
-	{id: 12, name: 'frozen floor', file: 'blocks/frozen_floor_block.png'},
-	{id: 13, name: 'gold',         file: 'blocks/gold_block.png'},
-	{id: 14, name: 'ice excla',    file: 'blocks/ice_excla_block1.png'},
-	{id: 15, name: 'ice floor',    file: 'blocks/ice_floor_block.png'},
-	{id: 16, name: 'note',         file: 'blocks/note_block.png'},
-	{id: 17, name: 'sand',         file: 'blocks/sand.png'},
-	{id: 18, name: 'silver',       file: 'blocks/silver_block.png'},
-	{id: 19, name: 'cloud',        file: 'blocks/strange_cloud1.png'}
+	{id:  1, name: 'brick',                 file: 'blocks/bricks.png'},
+	{id:  2, name: 'exclamation block',     file: 'blocks/normal_excla.png'},
+	{id:  3, name: 'end sign',              file: 'blocks/end_level.png'},
+	{id:  4, name: 'arrow',                 file: 'blocks/arrow_sign.png'},
+	{id:  5, name: 'gravel',                file: 'blocks/cement.png'},
+	{id:  6, name: 'diamond block',         file: 'blocks/diamond_block.png'},
+	{id:  7, name: 'sponge',                file: 'blocks/esponja.png'},
+	{id:  8, name: 'floor block',           file: 'blocks/floor_block.png'},
+	{id:  9, name: 'frozen floor block',    file: 'blocks/frozen_floor_block.png'},
+	{id: 10, name: 'ice exclamation block', file: 'blocks/ice_excla_block1.png'},
+	{id: 11, name: 'ice floor block',       file: 'blocks/ice_floor_block.png'},
+	{id: 12, name: 'note block',            file: 'blocks/note_block.png'},
+	{id: 13, name: 'sand',                  file: 'blocks/sand.png'},
+	{id: 14, name: 'silver block',          file: 'blocks/silver_block.png'},
+	{id: 15, name: 'cloud',                 file: 'blocks/strange_cloud1.png'}
 ];
 
 /* Interactives are entities, not tiles: they are dragged into place and carry a
@@ -117,4 +108,4 @@ function ready(im) { return im && im.complete && im.naturalWidth > 0; }
 /* lvl.js pulls the tables in from the main process; the renderer loads this as
  * a plain script and picks the same names up as globals. */
 if (typeof module !== 'undefined' && module.exports)
-	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, PLAYERTILE, PLAYER_DEF};
+	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, PLAYER_DEF};
