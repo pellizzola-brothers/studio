@@ -64,6 +64,11 @@
 						   Named --line-box, not --line, because --line above
 						   is already the separator-colour token (POLISH.md's
 						   own proposed name collides with it). */
+	/* A11Y-06: applyuiscale() (app.js) only ever overrides --font-size/
+	   --font-size-sm/--line-box directly - restating its multiplier here as
+	   a plain ratio lets the panel tokens below scale with it too, without
+	   app.js having to reach into --side/--right itself. */
+	--ui-scale: calc(var(--font-size) / 12px);
 
 	/* ---- spacing: a 2/4/6/8/12/16/24 progression, the steps the design
 	   actually uses, deduplicated - not a geometric series for its own sake */
@@ -117,11 +122,17 @@
 		calc(16ch + var(--space-6) + var(--space-4) + var(--scrollbar)),
 		218px
 	);
-	--side-max: 320px;
-	--side: clamp(var(--side-min), 10.5%, var(--side-max));
+	/* --side-max/--right-max scale with --ui-scale so the lateral panels
+	   still have somewhere to grow into at a larger text size instead of
+	   clamping flat at the design's own 320px regardless of it; --*-min
+	   needs no such change - --side-min's ch term already tracks font-size
+	   on its own, and --right-min's --cell term is deliberately independent
+	   of text size (the palette's own cell-size setting, not this one). */
+	--side-max: calc(320px * var(--ui-scale));
+	--side: clamp(var(--side-min), calc(10.5% * var(--ui-scale)), var(--side-max));
 	--right-min: calc(3 * var(--cell) + 2 * var(--space-2) + 2 * var(--space-4) + var(--scrollbar));
-	--right-max: 320px;
-	--right: clamp(var(--right-min), 13%, var(--right-max));
+	--right-max: calc(320px * var(--ui-scale));
+	--right: clamp(var(--right-min), calc(13% * var(--ui-scale)), var(--right-max));
 	/* GEO-04: the splitter track width/height, and the two in-panel splits a
 	   splitter drag (layout.js) also overwrites directly - these are plain
 	   percentages with a floor and ceiling enforced in JS, since neither
@@ -488,6 +499,17 @@ html[data-platform="darwin"] .acts { display: none; }
 	grid-template-rows: minmax(0, 1fr);
 	flex: 1;
 	min-height: 0;
+	/* --frame (body's own background) is the window-frame trim colour - a
+	   thin title-bar strip's worth, never meant to fill a whole panel. Both
+	   var(--split) tracks are transparent (.splitter, below) and show
+	   whatever #body's own background is through their un-stroked width, and
+	   the var(--right) track still reserves its full width once #right is
+	   display:none (body.text, below) rather than collapsing - so both read
+	   as a stray, wrongly-coloured gap/panel once #code's own much darker
+	   Monaco background sits right next to them. var(--panel) is what #side/
+	   #right themselves are painted in, so this reads as more of the same
+	   panel instead. */
+	background: var(--panel);
 }
 
 /* GEO-13: the design wraps both side panels in their own drop-shadow filter,
@@ -730,6 +752,14 @@ body.text #warnbar { display: none; }	/* level-only, like #canvasrow/#hbarrow */
 body.text #canvasrow, body.text #hbarrow { display: none; }
 body.text #code { display: block; }
 body.text #right { display: none; }
+/* #status itself is otherwise untouched on a script tab (UX-04): #zoom now
+   reads Code.zoom instead of the canvas's, kept live by app.js's
+   App.select()/Code.setzoom() rather than anything here, and
+   cursor/dims/entcount/tool are left showing whatever the Level Editor tab
+   last read - unambiguously level-editor labelled ("540x12", "23 entities",
+   "tool: …"), so a stale read there does not misrepresent anything currently
+   on screen the way a bare, unlabelled percentage would have if it were
+   still the canvas's own. */
 
 /* palette */
 /* GEO-07: repeat(4, 1fr) stretched every cell to whatever quarter of the

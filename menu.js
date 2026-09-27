@@ -103,22 +103,19 @@ function template(win, state, recent, onclear)
 	const view = {
 		label: L('View'),
 		submenu: [
-			{label: L('Zoom In'), accelerator: 'CmdOrCtrl+Plus', enabled: onlevel, click: send('zoomin')},
-			{label: L('Zoom Out'), accelerator: 'CmdOrCtrl+-', enabled: onlevel, click: send('zoomout')},
-			{label: L('Actual Size'), accelerator: 'CmdOrCtrl+0', enabled: onlevel, click: send('zoom100')},
+			/* UX-04/A11Y-06: one zoom for the whole app - on a script tab it
+			 * drives the Text Editor's own buffer zoom instead of the level
+			 * canvas's (Code.setzoom(), app.js's zoomby()/zoomto()), and either
+			 * way also scales the chrome (applyuiscale()) alongside it, so this
+			 * one indicator/menu/shortcut set means "zoom" for the whole window
+			 * rather than only wherever the canvas happens to be showing. */
+			{label: L('Zoom In'), accelerator: 'CmdOrCtrl+Plus', click: send('zoomin')},
+			{label: L('Zoom Out'), accelerator: 'CmdOrCtrl+-', click: send('zoomout')},
+			{label: L('Actual Size'), accelerator: 'CmdOrCtrl+0', click: send('zoom100')},
 			{type: 'separator'},
 			{label: L('Fit Height'), enabled: onlevel, click: send('fitheight')},
 			{label: L('Fit Scene Width'), enabled: onlevel, click: send('fitwidth')},
 			{label: L('Fit Scene'), accelerator: 'CmdOrCtrl+9', enabled: onlevel, click: send('fitall')},
-			{type: 'separator'},
-			/* A11Y-06: independent of the canvas zoom above - this scales the
-			 * chrome's own type (and, with it, the row heights built to hold a
-			 * line of it), for OS text-size settings Electron gives no other
-			 * hook into. CmdOrCtrl+Shift+ rather than the bare Plus/-/0 the
-			 * canvas zoom already owns above. */
-			{label: L('Increase Text Size'), accelerator: 'CmdOrCtrl+Shift+Plus', click: send('uitextinc')},
-			{label: L('Decrease Text Size'), accelerator: 'CmdOrCtrl+Shift+-', click: send('uitextdec')},
-			{label: L('Reset Text Size'), accelerator: 'CmdOrCtrl+Shift+0', click: send('uitextreset')},
 			{type: 'separator'},
 			/* NAT-14: Ctrl+Tab, not CmdOrCtrl+Tab - the bare Ctrl form is the
 			 * cross-app convention for cycling tabs within a window (browsers,

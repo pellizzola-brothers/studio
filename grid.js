@@ -406,12 +406,13 @@ Grid.fit = function ()		/* fit the closest scene, not the whole level */
 	fitset(SCENEZOOM, curscene() * SCENECOLS * B);
 };
 
-/* UX-04: c.z *= 2 every two presses - the same "zoom doubles per N units of
- * input" statement ZOOM_PX_PER_DOUBLING makes for the wheel, applied to a
- * single keypress instead of a pixel of travel.  Consumed by app.js's ACTS
- * table, not by this file. */
+/* UX-04/A11Y-06: a flat 5 percentage points per press - app.js's zoomby()
+ * adds/subtracts this from whichever of Grid.cam.z/Code.zoom is live, and
+ * applies the same target to applyuiscale() alongside it, so one step reads
+ * the same whether it is nudging the level canvas, the Text Editor or the
+ * chrome. Consumed by app.js's ACTS table, not by this file. */
 /* exported ZOOM_STEP */
-const ZOOM_STEP = Math.SQRT2;
+const ZOOM_STEP = 0.05;
 
 /* Re-centres on the canvas's own midpoint, the natural anchor for a command
  * with no pointer position to anchor to (onwheel()'s Ctrl+wheel zoom anchors
@@ -427,8 +428,6 @@ Grid.zoomto = function (z)
 	Grid.cam.y = wy - my / Grid.cam.z;
 	Grid.redraw();
 };
-
-Grid.zoomby = function (factor) { Grid.zoomto(Grid.cam.z * factor); };
 
 /* Keep the camera over the level so the scrollbar below the canvas can stand
  * for the whole range of x. */

@@ -49,8 +49,15 @@ end
  * calc()s off --line-box, every row height in the chrome ultimately comes
  * from - scaling those three together, in place, grows the rows built to
  * hold a line of text along with the text itself, instead of clipping it.
- * --space-* (gaps and padding) is deliberately left alone: a dense tool UI's
- * controls would lose their own grid if those grew with text too.
+ * --icon (VIS-11's 16px inline-SVG size) scales alongside them, rounded to a
+ * whole pixel so a stroke-width:2 line-icon stays crisp at any scale rather
+ * than sitting fixed while the row and label around it grow - unlike a
+ * texture, an SVG icon has no native resolution to go soft off of. --space-*
+ * (gaps and padding) is deliberately left alone: a dense tool UI's controls
+ * would lose their own grid if those grew with text too - and so is
+ * --cell/--sprite (the palette's own texture-pixel size, GEO-07): scaling a
+ * raster sprite sheet by anything but a whole multiple is exactly the
+ * "never fractional" rule that token's own comment already rules out.
  *
  * POLISH.md's own suggestion was to express --font-size/--font-size-sm in
  * rem and let a root font-size change do the rest - not done that way here,
@@ -72,30 +79,77 @@ function uiscalebase()
 		uibase = {
 			size: parseFloat(cs.getPropertyValue('--font-size')),
 			sizeSm: parseFloat(cs.getPropertyValue('--font-size-sm')),
-			line: parseFloat(cs.getPropertyValue('--line-box'))
+			line: parseFloat(cs.getPropertyValue('--line-box')),
+			icon: parseFloat(cs.getPropertyValue('--icon'))
 		};
 	}
 	return uibase;
 }
 
-const UISCALE_KEY = 'pb-uiscale', UISCALE_STEP = 1.1, UISCALE_MIN = 0.75, UISCALE_MAX = 2;
+const UISCALE_KEY = 'pb-uiscale', UISCALE_MIN = 0.75, UISCALE_MAX = 2;
+
+/* The current scale, clamped the same way applyuiscale() clamps whatever it
+ * is given - code.js reads this too (Code.init() runs after app.js has
+ * loaded, however late Monaco's own loader calls back), so the Text Editor's
+ * chrome (its own surrounding rows/labels, not its buffer text - that's
+ * Code.zoom, below) scales with the rest of the app instead of sitting
+ * outside it entirely. */
+function uiscale()
+{
+	return Math.min(UISCALE_MAX, Math.max(UISCALE_MIN, +localStorage.getItem(UISCALE_KEY) || 1));
+}
+
+/* Monaco's own fontSize/lineHeight, at the current editor font size setting
+ * and Code.zoom (code.js) - the one View > Zoom In/Out/Actual Size command
+ * set now drives the level canvas, the Text Editor's buffer and the chrome's
+ * own uiscale all together (zoomby()/zoomto(), below), so this reads
+ * Code.zoom alone rather than also folding in uiscale() - multiplying both
+ * in would double the same step, since the two now always move in lockstep
+ * whenever a zoom command runs them. lineHeight is derived from fontSize by
+ * Tokens' own base ratio (--line-box / --font-size, 18/12 = 1.5) rather than
+ * scaled from --line-box on its own - --line-box is the *chrome's* row
+ * height, tied to Settings.editorfontsize only by coincidence when the
+ * latter is left at its default (12). Scaling them independently let
+ * Settings.editorfontsize (its own 8-32 range, panel.js) and Code.zoom drift
+ * apart until lineHeight fell below fontSize and Monaco's own lines started
+ * overlapping - reachable by raising the setting on its own even with
+ * Code.zoom at 1. */
+function editorzoomoptions()
+{
+	const fontSize = Settings.editorfontsize * Code.zoom;
+	return {fontSize, lineHeight: fontSize * Tokens.lineHeight / Tokens.fontSize};
+}
 
 function applyuiscale(v)
 {
 	v = Math.min(UISCALE_MAX, Math.max(UISCALE_MIN, v));
+	const old = uiscale();
 	const b = uiscalebase();
 	const root = document.documentElement.style;
 
 	root.setProperty('--font-size', (b.size * v) + 'px');
 	root.setProperty('--font-size-sm', (b.sizeSm * v) + 'px');
 	root.setProperty('--line-box', (b.line * v) + 'px');
+	root.setProperty('--icon', Math.round(b.icon * v) + 'px');
 	localStorage.setItem(UISCALE_KEY, v);
+	/* --side/--right's own clamp() (style.css) already tracks --font-size for
+	 * a panel still at its default width; Layout.rescale() is the other half,
+	 * for one a splitter drag already pinned to an explicit px (CLAUDE.md's
+	 * lateral-bar zoom gap). */
+	Layout.rescale(v / old);
 	/* Grid.cv does not exist yet the first time this runs, before Grid.init()
 	 * (index.html loads grid.js ahead of app.js, so Grid itself already does) -
 	 * harmless, since Grid.init() reads the already-scaled CSS on its own
 	 * first layout pass, so nothing is missed. */
 	if (Grid.cv)
 		Grid.resize();
+	/* Same story as Grid.cv above, but for Monaco: Code.init() is lazy (the
+	 * first script tab opened), so nothing to push this into yet if it
+	 * hasn't run - code.js's own creation options read editorzoomoptions()
+	 * directly, so a later Code.init() picks up whatever this already
+	 * persisted. */
+	if (Code.ready)
+		Code.ed.updateOptions(editorzoomoptions());
 }
 
 applyuiscale(+localStorage.getItem(UISCALE_KEY) || 1);
@@ -144,7 +198,7 @@ function applysettings()
 		Panel.palette();	/* cell size */
 	}
 	if (Code.ready)
-		Code.ed.updateOptions({fontSize: Settings.editorfontsize});
+		Code.ed.updateOptions(editorzoomoptions());
 	applysnapshotinterval();
 }
 
@@ -512,14 +566,24 @@ App.select = function (id)
 	tabs();
 	if (id === 'level')
 		Grid.resize();
-	else if (Code.ready)
+	else if (Code.ready) {
 		Code.show(id);
-	else
+		/* UX-04: nothing else repaints #zoom for a script tab (Grid.draw()
+		 * is what does it for the level one, and it never runs while #code
+		 * is what's showing) - switching tabs is the one other moment the
+		 * displayed % can go stale. */
+		App.zoom(Math.round(Code.zoom * 100));
+	} else
 		/* ARCH-08: the first script tab a session opens is what triggers
 		 * Monaco's lazy load; `done` reads App.tab rather than closing over
 		 * `id`, since the user is free to switch tabs again before a slow
 		 * load finishes. */
-		Code.init(() => { if (App.tab !== 'level') Code.show(App.tab); });
+		Code.init(() => {
+			if (App.tab !== 'level') {
+				Code.show(App.tab);
+				App.zoom(Math.round(Code.zoom * 100));
+			}
+		});
 	sidebar();
 	App.syncmenu();
 };
@@ -1229,6 +1293,41 @@ function switchtab(dir)
 	App.select(order[i]);
 }
 
+/* UX-04/A11Y-06: one Zoom In/Out/Actual Size/25/50/100/200% set (menu.js's
+ * View menu, the status bar's own quick-menu, CmdOrCtrl+Plus/-/0) driving the
+ * level canvas, the Text Editor and applyuiscale()'s own chrome scale all
+ * together - a single zoom that covers the whole app rather than three
+ * separate ones, so this always calls all of Grid.zoomto()/Code.setzoom()/
+ * applyuiscale() from the same target z, regardless of which tab is actually
+ * showing. Not just the active one: zooming while the level tab is open and
+ * only *later* switching to a script (or the reverse) still has to land on
+ * the zoom level everything else is already at, rather than the tab that
+ * happened to be hidden at the time silently sitting at whatever it was last
+ * left at. Each still clamps to its own range independently (ZMIN/ZMAX,
+ * Code.setzoom's own 0.5-3, UISCALE_MIN/MAX) - they move together until one
+ * of them saturates first, which is expected: the level canvas legitimately
+ * zooms far past what readable chrome text ever needs to. Grid.zoomto() reads
+ * Grid.cv's own (possibly zero, while the level tab is hidden) bounding rect
+ * for its anchor math either way - harmless, since a zero-size rect just
+ * anchors on Grid.cam's own existing x/y unchanged.
+ *
+ * zoomby() still reads its *current* value off whichever tab is showing -
+ * Grid.fit()/fitH()/fitW() only ever move Grid.cam.z (deliberately: that
+ * family is about the level's own content, not this shared zoom), so a step
+ * taken right after one has to continue from the canvas's own just-fitted
+ * z, not from a Code.zoom a Fit command never touched. */
+function zoomby(delta)
+{
+	zoomto((App.tab === 'level' ? Grid.cam.z : Code.zoom) + delta);
+}
+
+function zoomto(z)
+{
+	Grid.zoomto(z);
+	Code.setzoom(z);
+	applyuiscale(z);
+}
+
 const ACTS = {
 	'new':		() => App.new(),
 	open:		() => App.openlevel(),
@@ -1244,23 +1343,21 @@ const ACTS = {
 	 * exactly like the default menu's Reload item used to. */
 	reload:		async () => { if (await guard()) location.reload(); },
 	/* UX-04: the View menu's zoom commands and the status bar's zoom quick-menu
-	 * both dispatch through this same table, alongside every other command. */
-	zoomin:		() => Grid.zoomby(ZOOM_STEP),
-	zoomout:	() => Grid.zoomby(1 / ZOOM_STEP),
-	zoom25:		() => Grid.zoomto(0.25),
-	zoom50:		() => Grid.zoomto(0.5),
-	zoom100:	() => Grid.zoomto(1),
-	zoom200:	() => Grid.zoomto(2),
+	 * both dispatch through this same table, alongside every other command.
+	 * zoomby()/zoomto() (below) pick the level canvas or the Text Editor by
+	 * whichever tab is actually open, rather than always the canvas. */
+	zoomin:		() => zoomby(ZOOM_STEP),
+	zoomout:	() => zoomby(-ZOOM_STEP),
+	zoom25:		() => zoomto(0.25),
+	zoom50:		() => zoomto(0.5),
+	zoom100:	() => zoomto(1),
+	zoom200:	() => zoomto(2),
 	fitheight:	() => Grid.fitH(),
 	fitwidth:	() => Grid.fitW(),
 	fitall:		() => Grid.fit(),
 	/* NAT-14: View -> Next/Previous Tab, Control+Tab/Control+Shift+Tab. */
 	nexttab:	() => switchtab(1),
 	prevtab:	() => switchtab(-1),
-	/* A11Y-06: View -> Increase/Decrease/Reset Text Size. */
-	uitextinc:	() => applyuiscale((+localStorage.getItem(UISCALE_KEY) || 1) * UISCALE_STEP),
-	uitextdec:	() => applyuiscale((+localStorage.getItem(UISCALE_KEY) || 1) / UISCALE_STEP),
-	uitextreset:	() => applyuiscale(1),
 	/* UX-11: Settings lives in #props, the same element every other
 	 * Panel.inspect() view already owns - switching to the Level Editor tab
 	 * first is what makes it visible, since #right (and #props with it) is

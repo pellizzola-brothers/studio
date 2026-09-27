@@ -6,7 +6,23 @@
 'use strict';
 
 const Code = {ed: null, models: new Map(), path: null, ready: false, quiet: false,
-	loading: false, pending: []};
+	loading: false, pending: [], zoom: 1};
+
+/* UX-04/A11Y-06: the View > Zoom In/Out/Actual Size the level canvas already
+ * had - app.js's zoomby()/zoomto() call this instead of Grid.zoomto() while a
+ * script tab is open, alongside applyuiscale() for the chrome, so the one
+ * menu/shortcut/status-bar-% set means "zoom" everywhere at once rather than
+ * only ever the canvas's. Bounds mirror grid.js's own ZMIN/ZMAX in spirit (a
+ * sensible floor/ceiling, not a computed one) - unlike the canvas there is no
+ * "level" to zoom to fit, so the range is chosen for a font size rather than
+ * a world. */
+Code.setzoom = function (z)
+{
+	Code.zoom = Math.max(0.5, Math.min(3, z));
+	if (Code.ready)
+		Code.ed.updateOptions(editorzoomoptions());
+	App.zoom(Math.round(Code.zoom * 100));
+};
 
 /* VIS-04/VIS-18: every one of these now reads Tokens (tokens.js) instead of
  * a hand-transcribed hex literal - the three that VIS-04 left alone
@@ -108,9 +124,15 @@ Code.init = function (done)
 			 * before the first script tab can possibly be open, so it is
 			 * always real by the time this runs; app.js's own
 			 * applysettings() calls Code.ed.updateOptions() directly for a
-			 * live change, since this line only runs once, at creation. */
-			fontSize: Settings.editorfontsize,
-			lineHeight: Tokens.lineHeight,		/* VIS-18 */
+			 * live change, since this line only runs once, at creation.
+			 * A11Y-06: editorzoomoptions() (app.js) folds the
+			 * application-wide text zoom into the same fontSize/lineHeight
+			 * pair, at the ratio VIS-18's own Tokens.lineHeight/Tokens.fontSize
+			 * already fixed - applyuiscale() and applysettings() both drive
+			 * the same updateOptions() call live once Code.ready, this is
+			 * only the seed for whatever they already persisted by the time
+			 * this (lazy, first-script-tab) creation runs. */
+			...editorzoomoptions(),
 			/* VIS-18: 'line' is Monaco's own default, made explicit so it
 			 * reads as a decision - it fills the current line with
 			 * editor.lineHighlightBackground (Tokens.tab, above), the same

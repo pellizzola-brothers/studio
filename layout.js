@@ -198,6 +198,28 @@ function pctsplitter(el, prop, key, def, measure, cls, target)
 	});
 }
 
+/* A11Y-06: --side/--right's own clamp() in style.css already scales its
+ * default (no drag yet) with --ui-scale - this is the other half, for a
+ * panel a splitter drag (pxsplitter, above) already pinned to an explicit
+ * px. That px was sized to fit the text at the scale it was dragged at, so
+ * it needs to grow or shrink with the same factor app.js's applyuiscale()
+ * just applied, rather than sit frozen at the old pixel count while
+ * everything drawn inside it changes size around it. Re-clamped through the
+ * same *-min/*-max tokens pxsplitter's own apply() uses, since those moved
+ * too. */
+Layout.rescale = function (factor)
+{
+	const s = loadstate();
+	for (const [prop, key] of [['--side', 'side'], ['--right', 'right']]) {
+		if (typeof s[key] !== 'number')
+			continue;
+		const min = pxof(prop + '-min'), max = pxof(prop + '-max');
+		s[key] = Math.max(min, Math.min(max, s[key] * factor));
+		root.style.setProperty(prop, s[key] + 'px');
+	}
+	savestate(s);
+};
+
 Layout.init = function ()
 {
 	const side = $('side'), right = $('right');
