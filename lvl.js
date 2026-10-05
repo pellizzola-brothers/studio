@@ -375,8 +375,7 @@ function filesof(doc, json)
 	return files;
 }
 
-/* The level_hash recipe, which website/backend/lib/lvlhash.js repeats and
- * must keep in step: SHA-256 over every file sorted by name (directory
+/* The level_hash recipe, which any verifier must equate to: SHA-256 over every file sorted by name (directory
  * entries skipped), each fed as name, NUL, byte length, NUL, bytes. level.json
  * is fed as compact JSON.stringify() of its parse with level_hash removed, so
  * neither its layout nor the zip's timestamps and compression can change the

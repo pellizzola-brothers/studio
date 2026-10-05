@@ -98,8 +98,8 @@ level.lvl
   as `name NUL length NUL bytes`, with `level.json` replaced by compact
   `JSON.stringify()` of its parse minus `level_hash`. Zip timestamps,
   compression and `level.json`'s layout do not matter, so a reader unzips,
-  recomputes and compares - `website/backend/lib/lvlhash.js` does exactly that
-  on upload and repeats the recipe, so change both together. The document in
+  recomputes and compares. Any verifier of this hash must equate to this
+  recipe, so a change to it here is a change to the format. The document in
   memory never holds the key (Undo would otherwise see it), and any copy read
   from disk is stripped before hashing. `write()` hashes then zips once.
 
