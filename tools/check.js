@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const assert = require('assert');
+const {unzipSync} = require('fflate');
 const lvl = require('../lvl');
 
 const ROOT = path.join(__dirname, '..');
@@ -52,12 +53,14 @@ async function roundtrip()
 	/* NAT-19: lvl.write() is async now (done, see "Already completed"). */
 	await lvl.write(tmp, doc);
 	const back = lvl.read(tmp);
+	const files = unzipSync(fs.readFileSync(tmp));
 	fs.unlinkSync(tmp);
 
 	/* write() adds information.level_hash to the file alone (never to doc),
 	 * so it is checked for shape here and removed before comparing the rest. */
 	const hash = back.json.level.information.level_hash;
 	assert(/^[0-9a-f]{64}$/.test(hash), 'level_hash is not a SHA-256 hex digest');
+	assert.strictEqual(lvl.hashfiles(files), hash, 'level_hash does not match the archive\'s contents');
 	delete back.json.level.information.level_hash;
 	assert.deepStrictEqual(back.json, doc.json, 'level.json changed shape across write() -> read()');
 	assert.strictEqual(back.scripts['scripts/probe.lua'], doc.scripts['scripts/probe.lua'], 'script text did not round-trip');

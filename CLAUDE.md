@@ -93,13 +93,15 @@ level.lvl
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
   a path into the archive (`scripts/walker.lua`).
 - `pos` is `[x, y]` in world pixels.
-- `information.level_hash` is the SHA-256 (hex) of the whole archive as it was
-  zipped *before* the key existed. `write()` zips, hashes, then zips again with
-  the hash added, so every save costs two compressions. The document in memory
-  never holds the key (Undo would otherwise see it), and any copy read from disk
-  is stripped before hashing. fflate stamps each entry with `Date.now()`, so the
-  archive is not byte-reproducible: a reader cannot re-zip it to recheck the
-  hash. Fixing that means pinning entry mtimes.
+- `information.level_hash` is a SHA-256 (hex) over the archive's *contents*,
+  not its bytes: `hashfiles()` in `lvl.js` feeds every file, sorted by name,
+  as `name NUL length NUL bytes`, with `level.json` replaced by compact
+  `JSON.stringify()` of its parse minus `level_hash`. Zip timestamps,
+  compression and `level.json`'s layout do not matter, so a reader unzips,
+  recomputes and compares - `website/backend/lib/lvlhash.js` does exactly that
+  on upload and repeats the recipe, so change both together. The document in
+  memory never holds the key (Undo would otherwise see it), and any copy read
+  from disk is stripped before hashing. `write()` hashes then zips once.
 
 ## Key design decisions
 

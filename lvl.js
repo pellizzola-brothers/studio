@@ -350,8 +350,8 @@ function formatlevel(j)
 	return s;
 }
 
-/* information.level_hash is the SHA-256 (hex) of the whole archive as it was
- * zipped before that key existed. Any copy already in the document is
+/* information.level_hash is the content hash hashfiles() (below) computes.
+ * Any copy already in the document is
  * dropped first, so re-saving never hashes a stale key. Returns a new json
  * object: doc.json itself is left alone, so Undo never sees the key. */
 function withhash(j, hash)
@@ -363,14 +363,41 @@ function withhash(j, hash)
 	return {...j, level: {...j.level, information: info}};
 }
 
-function pack(doc, json)
+/* Every file the archive holds, by name: level.json laid out by formatlevel(),
+ * then scripts and MIDI as they are. */
+function filesof(doc, json)
 {
 	const files = {'level.json': strToU8(formatlevel(json))};
 	for (const k in doc.scripts)
 		files[k] = strToU8(doc.scripts[k]);
 	for (const k in doc.midi)
 		files[k] = new Uint8Array(doc.midi[k]);
+	return files;
+}
 
+/* The level_hash recipe, which website/backend/lib/lvlhash.js repeats and
+ * must keep in step: SHA-256 over every file sorted by name (directory
+ * entries skipped), each fed as name, NUL, byte length, NUL, bytes. level.json
+ * is fed as compact JSON.stringify() of its parse with level_hash removed, so
+ * neither its layout nor the zip's timestamps and compression can change the
+ * result, and a reader can recheck it from the unzipped files alone. */
+function hashfiles(files)
+{
+	const h = crypto.createHash('sha256');
+	for (const k of Object.keys(files).sort()) {
+		if (k.endsWith('/'))
+			continue;
+		let data = files[k];
+		if (k === 'level.json')
+			data = strToU8(JSON.stringify(withhash(JSON.parse(strFromU8(data)), null)));
+		h.update(k + '\0' + data.length + '\0');
+		h.update(data);
+	}
+	return h.digest('hex');
+}
+
+function pack(files)
+{
 	return new Promise((resolve, reject) => {
 		zip(files, {level: 6}, (err, data) => err ? reject(err) : resolve(data));
 	});
@@ -382,11 +409,8 @@ async function write(p, doc)
 	if (errs.length)
 		fail('refusing to save an invalid level:', errs);
 
-	/* zip everything -> hash that archive -> zip again with the hash in
-	 * level.json. The second zip is the one written to disk. */
-	const first = await pack(doc, withhash(doc.json, null));
-	const hash = crypto.createHash('sha256').update(first).digest('hex');
-	const data = await pack(doc, withhash(doc.json, hash));
+	const hash = hashfiles(filesof(doc, doc.json));
+	const data = await pack(filesof(doc, withhash(doc.json, hash)));
 
 	/* Write to a temp file in the same directory, then rename over the
 	 * target: rename(2) is atomic within one filesystem, so a crash or a
@@ -402,4 +426,4 @@ async function write(p, doc)
 	}
 }
 
-module.exports = {W: cat.W, H: cat.H, BG, blank, read, write, validate, migrate, review};
+module.exports = {W: cat.W, H: cat.H, BG, blank, read, write, hashfiles, validate, migrate, review};
