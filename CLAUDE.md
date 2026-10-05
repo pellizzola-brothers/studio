@@ -77,7 +77,7 @@ level.lvl
 ```json
 {
     "level": {
-        "information": {"name": "", "description": "", "author": ""},
+        "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
         "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai"}],
         "entities": [{"def": "chapeleira", "pos": [500, 1000]}],
@@ -93,6 +93,13 @@ level.lvl
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
   a path into the archive (`scripts/walker.lua`).
 - `pos` is `[x, y]` in world pixels.
+- `information.level_hash` is the SHA-256 (hex) of the whole archive as it was
+  zipped *before* the key existed. `write()` zips, hashes, then zips again with
+  the hash added, so every save costs two compressions. The document in memory
+  never holds the key (Undo would otherwise see it), and any copy read from disk
+  is stripped before hashing. fflate stamps each entry with `Date.now()`, so the
+  archive is not byte-reproducible: a reader cannot re-zip it to recheck the
+  hash. Fixing that means pinning entry mtimes.
 
 ## Key design decisions
 

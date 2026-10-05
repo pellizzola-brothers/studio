@@ -8,6 +8,7 @@
 'use strict';
 
 const fs = require('fs');
+const crypto = require('crypto');
 const {zip, unzipSync, strToU8, strFromU8} = require('fflate');
 const cat = require('./catalog');
 
@@ -349,39 +350,56 @@ function formatlevel(j)
 	return s;
 }
 
-function write(p, doc)
+/* information.level_hash is the SHA-256 (hex) of the whole archive as it was
+ * zipped before that key existed. Any copy already in the document is
+ * dropped first, so re-saving never hashes a stale key. Returns a new json
+ * object: doc.json itself is left alone, so Undo never sees the key. */
+function withhash(j, hash)
+{
+	const info = {...j.level.information};
+	delete info.level_hash;
+	if (hash)
+		info.level_hash = hash;
+	return {...j, level: {...j.level, information: info}};
+}
+
+function pack(doc, json)
+{
+	const files = {'level.json': strToU8(formatlevel(json))};
+	for (const k in doc.scripts)
+		files[k] = strToU8(doc.scripts[k]);
+	for (const k in doc.midi)
+		files[k] = new Uint8Array(doc.midi[k]);
+
+	return new Promise((resolve, reject) => {
+		zip(files, {level: 6}, (err, data) => err ? reject(err) : resolve(data));
+	});
+}
+
+async function write(p, doc)
 {
 	const errs = validate(doc.json);
 	if (errs.length)
 		fail('refusing to save an invalid level:', errs);
 
-	const files = {'level.json': strToU8(formatlevel(doc.json))};
-	for (const k in doc.scripts)
-		files[k] = strToU8(doc.scripts[k]);
-	for (const k in doc.midi)
-		files[k] = new Uint8Array(doc.midi[k]);
+	/* zip everything -> hash that archive -> zip again with the hash in
+	 * level.json. The second zip is the one written to disk. */
+	const first = await pack(doc, withhash(doc.json, null));
+	const hash = crypto.createHash('sha256').update(first).digest('hex');
+	const data = await pack(doc, withhash(doc.json, hash));
 
 	/* Write to a temp file in the same directory, then rename over the
 	 * target: rename(2) is atomic within one filesystem, so a crash or a
 	 * full disk mid-write leaves the previous good file in place instead of
 	 * a truncated one. */
 	const tmp = p + '.tmp-' + process.pid;
-	return new Promise((resolve, reject) => {
-		zip(files, {level: 6}, (err, data) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			try {
-				fs.writeFileSync(tmp, data);
-				fs.renameSync(tmp, p);
-				resolve();
-			} catch (e) {
-				try { fs.unlinkSync(tmp); } catch (_) { /* nothing to clean up */ }
-				reject(e);
-			}
-		});
-	});
+	try {
+		fs.writeFileSync(tmp, data);
+		fs.renameSync(tmp, p);
+	} catch (e) {
+		try { fs.unlinkSync(tmp); } catch (_) { /* nothing to clean up */ }
+		throw e;
+	}
 }
 
 module.exports = {W: cat.W, H: cat.H, BG, blank, read, write, validate, migrate, review};

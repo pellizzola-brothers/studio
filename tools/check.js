@@ -54,6 +54,11 @@ async function roundtrip()
 	const back = lvl.read(tmp);
 	fs.unlinkSync(tmp);
 
+	/* write() adds information.level_hash to the file alone (never to doc),
+	 * so it is checked for shape here and removed before comparing the rest. */
+	const hash = back.json.level.information.level_hash;
+	assert(/^[0-9a-f]{64}$/.test(hash), 'level_hash is not a SHA-256 hex digest');
+	delete back.json.level.information.level_hash;
 	assert.deepStrictEqual(back.json, doc.json, 'level.json changed shape across write() -> read()');
 	assert.strictEqual(back.scripts['scripts/probe.lua'], doc.scripts['scripts/probe.lua'], 'script text did not round-trip');
 	assert.deepStrictEqual(
