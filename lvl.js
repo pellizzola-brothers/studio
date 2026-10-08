@@ -273,6 +273,9 @@ function read(p)
 		doc = {json: JSON.parse(strFromU8(buf)), scripts: {}, midi: {}};
 	}
 
+	const bd = doc.json.level && doc.json.level.block_data;
+	if (Array.isArray(bd) && bd.length && bd[0] && !Array.isArray(bd[0]) && Array.isArray(bd[0].rows))
+		unscenes(doc.json.level);
 	migrate(doc.json);
 	const errs = validate(doc.json);
 	if (errs.length)
@@ -324,15 +327,17 @@ function formatrow(row, indent)
  * tells formatrow() how far to hang its continuation lines. */
 function formatlevel(j)
 {
-	const rows = j.level.block_data;
+	const scenes = j.level.block_data;
+	const rows = scenes.flatMap(sc => sc.rows);
 	const ents = j.level.entities;
 	const rowmarks = rows.map((_, i) => '@@BLOCKROW' + i + '@@');
+	let n = 0;
 	const posmarks = ents.map((_, i) => '@@ENTPOS' + i + '@@');
 	const shim = {
 		...j,
 		level: {
 			...j.level,
-			block_data: rowmarks,
+			block_data: scenes.map(sc => ({scene: sc.scene, rows: sc.rows.map(() => rowmarks[n++])})),
 			entities: ents.map((e, i) => ({...e, pos: posmarks[i]}))
 		}
 	};
@@ -348,6 +353,36 @@ function formatlevel(j)
 		s = s.replace('"' + posmarks[i] + '"', '[' + e.pos.join(', ') + ']');
 	});
 	return s;
+}
+
+/* On disk, block_data is [{scene, rows}], one entry per scene that holds a
+ * block or an entity, each rows x SCENECOLS and air where nothing was
+ * placed. Empty scenes are not written; in memory (and in Grid) block_data
+ * stays the full W-wide grid, so scenes() and unscenes() convert at the
+ * file boundary only. */
+const SCENES = 9;
+const SCENECOLS = cat.W / SCENES;
+
+function scenes(l)
+{
+	const live = new Set();
+	for (const row of l.block_data)
+		row.forEach((id, x) => { if (id !== '000') live.add(Math.floor(x / SCENECOLS)); });
+	for (const e of l.entities)
+		live.add(Math.min(SCENES - 1, Math.max(0, Math.floor(e.pos[0] / cat.B / SCENECOLS))));
+	return [...live].sort((a, b) => a - b).map(scene => ({
+		scene,
+		rows: l.block_data.map(row => row.slice(scene * SCENECOLS, (scene + 1) * SCENECOLS))
+	}));
+}
+
+function unscenes(l)
+{
+	const h = l.block_data[0].rows.length;
+	const rows = Array.from({length: h}, () => Array(cat.W).fill('000'));
+	for (const sc of l.block_data)
+		sc.rows.forEach((r, y) => rows[y].splice(sc.scene * SCENECOLS, SCENECOLS, ...r));
+	l.block_data = rows;
 }
 
 /* information.level_hash is the content hash hashfiles() (below) computes.
@@ -408,8 +443,12 @@ async function write(p, doc)
 	if (errs.length)
 		fail('refusing to save an invalid level:', errs);
 
-	const hash = hashfiles(filesof(doc, doc.json));
-	const data = await pack(filesof(doc, withhash(doc.json, hash)));
+	const sc = scenes(doc.json.level);
+	if (!sc.length)
+		fail('refusing to save an empty level:', ['every scene is empty (no blocks or entities)']);
+	const json = {...doc.json, level: {...doc.json.level, block_data: sc}};
+	const hash = hashfiles(filesof(doc, json));
+	const data = await pack(filesof(doc, withhash(json, hash)));
 
 	/* Write to a temp file in the same directory, then rename over the
 	 * target: rename(2) is atomic within one filesystem, so a crash or a
