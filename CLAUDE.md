@@ -93,8 +93,7 @@ level.lvl
   scene (`H` rows x 20, written 20 to a line). Only scenes holding a block or an
   entity are written; an all-empty level is refused. `read()` re-expands to the
   540-wide grid (`scenes()`/`unscenes()` in `lvl.js`); the legacy `block_data`
-  form still opens. **The game and website must learn this layout.** Note
-  `grid.js`'s `SCENES`/`SCENECOLS` (9 x 60) disagree with the 27 x 20 split here.
+  form still opens. **The game and website must learn this layout.**.
 - Blocks are the only thing in `block_data`. Enemies *and* interactives both
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
@@ -129,11 +128,12 @@ with some other row count (a legacy or hand-edited file - `block_data`'s
 format itself still permits it, "Height is free" above) still opens and
 displays correctly; only *creating* or *resizing* to a non-`H` height is gone.
 
-**A level divides into 9 scenes.** `textures/README.md` documents this - each
+**A level divides into 27 scenes** (12x20 blocks each; `textures/README.md` still
+says 9 and needs the same change). Each
 scene gets its own backdrop once the schema grows a field for it, which it
 does not yet (`level.backgrounds` is still one id for the whole level, see
-"Backgrounds" below). `SCENES`/`SCENECOLS` in `grid.js` (9 and `W / SCENES` =
-60 columns) exist today only for `Grid.fit()`/`Grid.fitW()`: "zoom to fit"
+"Backgrounds" below). `SCENES`/`SCENECOLS` in `grid.js` (`W / SCENECOLS` = 27 and 20
+columns, matching `lvl.js`) exist today only for `Grid.fit()`/`Grid.fitW()`: "zoom to fit"
 targets the scene nearest the camera rather than the level's full 540-column
 width, which no viewport can usefully show at once. Changing the scene count
 here alone would disagree with the game and the texture library the same way
@@ -142,11 +142,10 @@ changing `B` or `W` alone would.
 `Grid.fit()` ("Fit Scene", `CmdOrCtrl+9`) zooms to a fixed `SCENEZOOM` (75% -
 the zoom a single scene reads at, a product decision like `H`'s, not a
 computed one) and moves the camera to that scene's own *left* edge, not
-`fitscene()`'s own centring (`fitW()`'s helper) - a scene is 6 000 world px
-wide, wider than any real viewport even at 75%, so centring the remaining
-space the way `fitscene()` does for a zoom chosen so the scene *almost* fits
-would land the camera somewhere in the scene's own middle here, cutting off
-the very start "fit scene" exists to jump to.
+`fitscene()`'s own centring (`fitW()`'s helper) - at a fixed
+zoom nowhere near the one that makes a scene *almost* fit, `fitscene()`'s
+centring could land the camera somewhere in the scene's own middle, cutting
+off the very start "fit scene" exists to jump to.
 
 **Block ids are a cross-repo contract.** The table in `textures/README.md` is
 the authority; the game reads the same ids. `catalog.js` deliberately omits

@@ -345,15 +345,15 @@ Grid.fitH = function ()
 	fitset(r.height / (Grid.h * B + 2 * FITPAD), 0);
 };
 
-/* A level divides into a fixed 9 scenes (textures/README.md: "9 scenes in a
- * level", each with its own backdrop) - 540 / 9 = 60 columns per scene, an
- * exact division rather than a guessed one. Fitting the level's *actual*
+/* A level divides into 540 / 20 = 27 scenes of 12x20 blocks, the unit
+ * lvl.js writes to level.scenes (textures/README.md still says 9 scenes per
+ * level, each with its own backdrop - it needs the same change). Fitting the level's *actual*
  * full width is never a useful "fit": a level is 54 000 world px wide, and
  * even ZMIN's floor only shows a fraction of that, so "fit width" and
  * "fit view" both target one scene - the one the camera is already over -
  * instead of the whole level. */
-const SCENES = 9;
-const SCENECOLS = W / SCENES;
+const SCENECOLS = 20;		/* matches lvl.js: a scene is 12x20 blocks on disk */
+const SCENES = W / SCENECOLS;
 
 /* The scene under the centre of the current view - "closest" to what the
  * user is actually looking at, not to column 0. */
@@ -386,11 +386,7 @@ Grid.fitW = function ()
 	fitscene(r.width / (SCENECOLS * B + 2 * FITPAD));
 };
 
-/* A scene is 6 000 world px wide - wider than any real viewport at any zoom
- * this file allows - so fitting its full width the way fitW() does would
- * always win the min() a shared-zoom version of this used to take, leaving
- * Grid.fit() indistinguishable from it: zoomed out far past any size that
- * reads as "fit". SCENEZOOM is fixed instead - a single scene reads at 75%
+/* SCENEZOOM is fixed rather than computed from the viewport - a single scene reads at 75%
  * regardless of viewport size, the same way fitH()/fitW() are the two
  * commands that still compute a real fit. Positioned at the scene's own
  * left edge, not fitscene()'s own centring: that centring only reads right
