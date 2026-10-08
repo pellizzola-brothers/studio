@@ -87,7 +87,14 @@ level.lvl
 ```
 
 - `"000"` is air, `"001"`+ are block ids, always three digits.
-- Every `block_data` row holds **exactly 540** entries. Height is free.
+- In memory, every `block_data` row holds **exactly 540** entries. Height is free.
+  **On disk**, `write()` replaces `block_data` with `"scenes"`: an object keyed
+  by 0-based scene number, each value a flat row-major array of one 20-column
+  scene (`H` rows x 20, written 20 to a line). Only scenes holding a block or an
+  entity are written; an all-empty level is refused. `read()` re-expands to the
+  540-wide grid (`scenes()`/`unscenes()` in `lvl.js`); the legacy `block_data`
+  form still opens. **The game and website must learn this layout.** Note
+  `grid.js`'s `SCENES`/`SCENECOLS` (9 x 60) disagree with the 27 x 20 split here.
 - Blocks are the only thing in `block_data`. Enemies *and* interactives both
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is

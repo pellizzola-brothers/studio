@@ -47,6 +47,12 @@ async function roundtrip()
 	const tmp = path.join(os.tmpdir(), 'pb-check-' + process.pid + '.lvl');
 	const doc = lvl.blank();
 	doc.json.level.information.name = 'round trip probe';
+
+	/* Scenes: an all-empty level is refused; otherwise only scenes holding a
+	 * block or entity are written, keyed by number, and read() re-expands. */
+	await assert.rejects(lvl.write(tmp, doc), /every scene is empty/, 'an empty level was written');
+	doc.json.level.block_data[3][130] = '001';	/* scene 6 */
+	doc.json.level.block_data[0][539] = '001';	/* scene 26 */
 	doc.scripts['scripts/probe.lua'] = '-- probe\n';
 	doc.midi['midi/probe.mid'] = new Uint8Array([1, 2, 3, 4]);
 
@@ -55,6 +61,10 @@ async function roundtrip()
 	const back = lvl.read(tmp);
 	const files = unzipSync(fs.readFileSync(tmp));
 	fs.unlinkSync(tmp);
+	const wl = JSON.parse(Buffer.from(files['level.json']).toString()).level;
+	assert(!('block_data' in wl), 'block_data was written');
+	assert.deepStrictEqual(Object.keys(wl.scenes), ['6', '26'], 'empty scenes were written');
+	assert(Object.values(wl.scenes).every(a => a.length === lvl.H * 20), 'scene is not 12x20');
 
 	/* write() adds information.level_hash to the file alone (never to doc),
 	 * so it is checked for shape here and removed before comparing the rest. */
