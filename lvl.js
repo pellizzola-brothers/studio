@@ -448,9 +448,8 @@ async function write(p, doc)
 	const sc = scenes(doc.json.level);
 	if (!Object.keys(sc).length)
 		fail('refusing to save an empty level:', ['every scene is empty (no blocks or entities)']);
-	const level = {...doc.json.level, scenes: sc};
-	delete level.block_data;
-	const json = {...doc.json, level};
+	const {information, entity_definitions, entities, backgrounds} = doc.json.level;
+	const json = {...doc.json, level: {information, scenes: sc, entity_definitions, entities, backgrounds}};
 	const hash = hashfiles(filesof(doc, json));
 	const data = await pack(filesof(doc, withhash(json, hash)));
 
