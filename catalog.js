@@ -9,10 +9,10 @@
  * textures/ no longer ships. */
 'use strict';
 
-/* ENDTILE, PLACEHOLDER, tex and ready are consumed by app.js, grid.js and
- * panel.js in the renderer's shared global scope (CLAUDE.md), not by this
- * file itself. */
-/* exported ENDTILE, PLACEHOLDER, tex, ready */
+/* ENDTILE, PLACEHOLDER, BLANKDEF, tex, ready and the sheet helpers are
+ * consumed by app.js, grid.js and panel.js in the renderer's shared global
+ * scope (CLAUDE.md), not by this file itself. */
+/* exported ENDTILE, PLACEHOLDER, BLANKDEF, tex, ready, sheetimage, artof, checksheets */
 
 const B = 100;		/* world pixels per block; game/src/main.c draws 100x100 */
 const W = 540;		/* entries per block_data row */
@@ -41,9 +41,9 @@ const ENDTILE = 3;	/* the unique goal block; review() in lvl.js and app.js count
 /* Interactives are entities, not tiles: they are dragged into place and carry a
  * script like any other entity.  The palette keeps them in their own group. */
 const ITEMS = [
-	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza.png'},
-	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin.png'},
-	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink.png'}
+	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza.png',      sheet: 'builtin', row: 7, size: 32},
+	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin.png',       sheet: 'builtin', row: 5, size: 32},
+	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink.png', sheet: 'builtin', row: 6, size: 32}
 ];
 
 /* They were tile ids 43-46 once.  Levels written back then are converted on
@@ -55,19 +55,35 @@ const ITEMTILE = {43: 'pizza', 44: 'coin', 45: 'soda'};
  * against its own script table.  Custom definitions instead carry a path into
  * the level's own scripts/ directory. */
 const PLAYER_DEF = 'player';	/* singleton: at most one entity may ever use it */
+
+/* Where each built-in sprite sits in the sheets the game reads.  `row` is
+ * the n-th run of non-transparent pixel rows in textures/sheets/entities.png
+ * (top to bottom; sheetrows() below finds them), or 0 in player.png; `size`
+ * is the edge of that row's cell, the largest sprite in it.  Which row is
+ * which entity is a contract, like a block id and its column in the block
+ * sheet - pixels cannot say it - so checksheets() only *verifies* the table
+ * against the real sheet.  Sprites are still drawn from `file`. */
 const ENTS = [
 	/* Each character/enemy is a directory of frames now; 00.png is the idle
 	 * one.  characters/pellizola/ was leandro.png, the canonical player sprite
 	 * (textures/ui/main_menu.png's own labelled callout).  The ids and scripts
 	 * are the game's and predate the renames (erick was abu, tux pinguim), so
 	 * only the files moved. */
-	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizola/00.png'},
-	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png'},
-	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png'},
-	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png'},
-	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/tux/00.png'},
-	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet/00.png'}
+	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizola/00.png', sheet: 'player',  row: 0, size: 32},
+	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png', sheet: 'builtin', row: 1, size: 32},
+	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png',      sheet: 'builtin', row: 2, size: 64},
+	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png',     sheet: 'builtin', row: 3, size: 32},
+	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/tux/00.png',        sheet: 'builtin', row: 4, size: 32},
+	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet/00.png',     sheet: 'builtin', row: 0, size: 32}
 ];
+
+/* The three values a definition's `sheet` may take: the game's own entity
+ * sheet, the player's sheet, or sheet.png at the root of the level's archive.
+ * A custom sheet is composed by the studio (app.js's stitch()) so that
+ * sprite (frame, row) of size s always sits at (frame * s, row * s). */
+const SHEETKINDS = ['builtin', 'player', 'custom'];
+const SHEETFILES = {builtin: 'sheets/entities.png', player: 'sheets/player.png'};
+const BLANKDEF = 'pranta';	/* the art a new custom definition starts with */
 
 /* The three presets the schema allows, mapped onto real backdrop art.  The
  * library ships a single backdrop now, so all three share it until more land. */
@@ -87,6 +103,25 @@ for (const t of BLOCKS)
 const entdefs = new Map();	/* definition id -> catalog entry */
 for (const e of ENTS.concat(ITEMS))
 	entdefs.set(e.id, e);
+
+/* The {sheet, row, size} a built-in definition is written with; anything
+ * the catalog does not know gets BLANKDEF's, so no field is ever empty. */
+function spriteof(id)
+{
+	const c = entdefs.get(id) || entdefs.get(BLANKDEF);
+	return {sheet: c.sheet, row: c.row, size: c.size};
+}
+
+/* Width and height of a PNG from its IHDR chunk, or null if `b` is not one.
+ * Enough to validate a sheet without decoding it. */
+function pngsize(b)
+{
+	const sig = [137, 80, 78, 71, 13, 10, 26, 10];
+	if (!b || b.length < 24 || sig.some((v, i) => b[i] !== v))
+		return null;
+	const u32 = i => ((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0;
+	return {w: u32(16), h: u32(20)};
+}
 
 /* Encode each path segment, in case a name is not URL-safe. */
 function texurl(file)
@@ -111,7 +146,101 @@ function tex(file, redraw)
 
 function ready(im) { return im && im.complete && im.naturalWidth > 0; }
 
+/* The level's own sheet.png, decoded.  Keyed on the byte array itself, which
+ * is replaced (never mutated) on import and by undo, so a changed sheet is
+ * exactly a changed reference. */
+let sheetcache = {bytes: null, url: null, im: null};
+
+function sheetimage(bytes, redraw)
+{
+	if (!bytes)
+		return null;
+	if (sheetcache.bytes !== bytes) {
+		if (sheetcache.url)
+			URL.revokeObjectURL(sheetcache.url);
+		const im = new Image();
+		im.onload = redraw;
+		sheetcache = {bytes: bytes, im: im,
+			url: URL.createObjectURL(new Blob([bytes], {type: 'image/png'}))};
+		im.src = sheetcache.url;
+	}
+	return sheetcache.im;
+}
+
+/* What to draw for definition `id`: a catalog entry (an individual file), or
+ * {custom: def} for a slice of the level's sheet.png.  A custom definition
+ * that points at a built-in row borrows that entry's file; art the catalog
+ * has no file for is PLACEHOLDER. */
+function artof(id, defs)
+{
+	const c = entdefs.get(id);
+	if (c)
+		return c;
+	const d = defs.find(v => v.id === id);
+	if (d && d.sheet === 'custom')
+		return {custom: d};
+	return (d && ENTS.concat(ITEMS).find(e => e.sheet === d.sheet && e.row === d.row)) ||
+		{file: PLACEHOLDER};
+}
+
+/* The rows of a decoded sheet: each run of pixel rows holding anything
+ * non-transparent, top to bottom, as {y, h}. */
+function sheetrows(im)
+{
+	const w = im.naturalWidth, h = im.naturalHeight;
+	const c = document.createElement('canvas');
+	c.width = w;
+	c.height = h;
+	const g = c.getContext('2d', {willReadFrequently: true});
+	g.drawImage(im, 0, 0);
+	const px = g.getImageData(0, 0, w, h).data;
+	const rows = [];
+	let start = -1;
+
+	for (let y = 0; y <= h; y++) {
+		let any = false;
+		for (let x = 0; y < h && x < w && !any; x++)
+			any = px[(y * w + x) * 4 + 3] !== 0;
+		if (any && start < 0)
+			start = y;
+		else if (!any && start >= 0) {
+			rows.push({y: start, h: y - start});
+			start = -1;
+		}
+	}
+	return rows;
+}
+
+/* Reads each built-in sheet and checks the rows ENTS/ITEMS claim against it:
+ * as many rows as the table names, each no taller than its `size`.  Resolves
+ * to a list of problems, empty when the table and the sheets agree. */
+async function checksheets()
+{
+	const out = [];
+
+	for (const kind of Object.keys(SHEETFILES)) {
+		const im = new Image();
+		im.src = texurl(SHEETFILES[kind]);
+		try {
+			await im.decode();
+		} catch (e) {
+			out.push(SHEETFILES[kind] + ' did not load');
+			continue;
+		}
+		const want = ENTS.concat(ITEMS).filter(e => e.sheet === kind);
+		const rows = sheetrows(im);
+		const named = Math.max(...want.map(e => e.row)) + 1;
+		if (rows.length !== named)
+			out.push(SHEETFILES[kind] + ' has ' + rows.length + ' rows, catalog.js names ' + named);
+		for (const e of want)
+			if (!rows[e.row] || rows[e.row].h > e.size)
+				out.push(e.id + ': row ' + e.row + ' of ' + SHEETFILES[kind] + ' does not fit ' + e.size + 'px');
+	}
+	return out;
+}
+
 /* lvl.js pulls the tables in from the main process; the renderer loads this as
  * a plain script and picks the same names up as globals. */
 if (typeof module !== 'undefined' && module.exports)
-	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, ENDTILE, PLAYER_DEF};
+	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, ENDTILE, PLAYER_DEF,
+		SHEETKINDS, spriteof, pngsize};

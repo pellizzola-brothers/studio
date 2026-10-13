@@ -4,6 +4,7 @@
  *	level.json	the level itself (schema below)
  *	scripts/*.lua	user-written Lua
  *	midi/*.mid	music
+ *	sheet.png	the level's own sprites, appended into one PNG (optional)
  */
 'use strict';
 
@@ -57,10 +58,16 @@ function validate(j)
 	if (!Array.isArray(l.entity_definitions))
 		e.push('entity_definitions must be an array');
 	else l.entity_definitions.forEach((d, n) => {
-		if (!d || !isstr(d.id) || !isstr(d.script)) {
-			e.push('entity_definitions[' + n + '] needs a string id and script');
+		if (!d || !isstr(d.id) || !d.id || !isstr(d.script) || !d.script) {
+			e.push('entity_definitions[' + n + '] needs a non-empty string id and script');
 			return;
 		}
+		if (!cat.SHEETKINDS.includes(d.sheet))
+			e.push('entity_definitions[' + n + '].sheet must be one of ' + cat.SHEETKINDS.join(', '));
+		if (!Number.isInteger(d.row) || d.row < 0)
+			e.push('entity_definitions[' + n + '].row must be a non-negative integer');
+		if (!Number.isInteger(d.size) || d.size < 1)
+			e.push('entity_definitions[' + n + '].size must be a positive integer');
 		if (defs.has(d.id))
 			e.push('duplicate entity definition "' + d.id + '"');
 		defs.add(d.id);
@@ -132,6 +139,18 @@ function review(doc)
 		if (d.script.startsWith('scripts/') && doc.scripts[d.script] === undefined)
 			w.push('definition "' + d.id + '" points at missing script ' + d.script);
 
+	const sz = cat.pngsize(doc.sheet);
+	for (const d of l.entity_definitions) {
+		if (d.sheet !== 'custom')
+			continue;
+		if (!sz)
+			w.push('definition "' + d.id + '" uses the custom sheet, but the level has none');
+		else if ((d.row + 1) * d.size > sz.h)
+			w.push('definition "' + d.id + '" row ' + d.row + ' lies outside sheet.png');
+	}
+	if (sz && !l.entity_definitions.some(d => d.sheet === 'custom'))
+		w.push('sheet.png is not used by any definition');
+
 	const h = l.block_data.length;
 	const used = new Set();
 	l.entities.forEach((s, n) => {
@@ -185,7 +204,18 @@ function migrate(j)
 		l.backgrounds = [BG[0]];
 
 	items(l);
+	sprites(l);
 	return j;
+}
+
+/* A definition written before sheets existed has no sprite fields; give it
+ * its catalog row, or BLANKDEF's if the catalog does not know it.  Only
+ * *missing* fields are filled - a malformed one is validate()'s to report. */
+function sprites(l)
+{
+	for (const d of l.entity_definitions)
+		if (d && typeof d === 'object' && d.sheet === undefined && d.row === undefined && d.size === undefined)
+			Object.assign(d, cat.spriteof(d.id));
 }
 
 /* Lift any leftover interactive tiles out of block_data and into entities. */
@@ -223,7 +253,8 @@ function blockrows(h)
 /* A document is what the renderer works on:
  *	json	 parsed level.json
  *	scripts	 {"scripts/foo.lua": "<text>"}
- *	midi	 {"midi/foo.mid": Uint8Array} */
+ *	midi	 {"midi/foo.mid": Uint8Array}
+ *	sheet	 the archive's sheet.png as a Uint8Array, or null */
 function blank()
 {
 	return {
@@ -237,7 +268,8 @@ function blank()
 			}
 		},
 		scripts: {},
-		midi: {}
+		midi: {},
+		sheet: null
 	};
 }
 
@@ -260,7 +292,7 @@ function read(p)
 		const unzipped = unzipSync(buf);
 		if (!unzipped['level.json'])
 			throw new Error(p + ' contains no level.json');
-		doc = {json: JSON.parse(strFromU8(unzipped['level.json'])), scripts: {}, midi: {}};
+		doc = {json: JSON.parse(strFromU8(unzipped['level.json'])), scripts: {}, midi: {}, sheet: null};
 		for (const k in unzipped) {
 			if (k.endsWith('/'))
 				continue;
@@ -268,9 +300,13 @@ function read(p)
 				doc.scripts[k] = strFromU8(unzipped[k]);
 			else if (k.startsWith('midi/'))
 				doc.midi[k] = unzipped[k];
+			else if (k === 'sheet.png')
+				doc.sheet = unzipped[k];
 		}
+		if (doc.sheet && !cat.pngsize(doc.sheet))
+			throw new Error('sheet.png in ' + p + ' is not a PNG');
 	} else {						/* a bare level.json */
-		doc = {json: JSON.parse(strFromU8(buf)), scripts: {}, midi: {}};
+		doc = {json: JSON.parse(strFromU8(buf)), scripts: {}, midi: {}, sheet: null};
 	}
 
 	const lv = doc.json.level;
@@ -401,7 +437,7 @@ function withhash(j, hash)
 }
 
 /* Every file the archive holds, by name: level.json laid out by formatlevel(),
- * then scripts and MIDI as they are. */
+ * then scripts, MIDI and the sheet as they are. */
 function filesof(doc, json)
 {
 	const files = {'level.json': strToU8(formatlevel(json))};
@@ -409,6 +445,8 @@ function filesof(doc, json)
 		files[k] = strToU8(doc.scripts[k]);
 	for (const k in doc.midi)
 		files[k] = new Uint8Array(doc.midi[k]);
+	if (doc.sheet)
+		files['sheet.png'] = new Uint8Array(doc.sheet);
 	return files;
 }
 
@@ -442,6 +480,8 @@ function pack(files)
 async function write(p, doc)
 {
 	const errs = validate(doc.json);
+	if (doc.sheet && !cat.pngsize(doc.sheet))
+		errs.push('sheet.png is not a PNG');
 	if (errs.length)
 		fail('refusing to save an invalid level:', errs);
 
