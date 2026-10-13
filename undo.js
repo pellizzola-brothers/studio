@@ -1,13 +1,14 @@
 /* undo.js - one flat history for the level document.
  *
  * A step stores the small parts of the document verbatim (information,
- * definitions, entities, backgrounds, the script and MIDI tables) and the
+ * definitions, entities, backgrounds, the script and MIDI tables, the sheet) and the
  * block grid as a list of changed cells.  Painting a stroke therefore costs a
  * few bytes per cell touched rather than a copy of the whole grid, which is
  * what makes an unbounded history affordable.
  *
  * Script and MIDI tables are copied shallowly: the values are immutable
- * strings and byte arrays, so the copy is a handful of pointers. */
+ * strings and byte arrays, so the copy is a handful of pointers.  The sheet
+ * is one such byte array, replaced whole on import, never edited in place. */
 'use strict';
 
 /* `clean` is the depth at which the document last matched disk, so dirty is
@@ -25,7 +26,8 @@ function shot()
 		ents: JSON.stringify(l.entities),
 		bgs: JSON.stringify(l.backgrounds),
 		scripts: Object.assign({}, App.doc.scripts),
-		midi: Object.assign({}, App.doc.midi)
+		midi: Object.assign({}, App.doc.midi),
+		sheet: App.doc.sheet
 	};
 }
 
@@ -54,14 +56,15 @@ function diffparts(a, b)
 		ents: a.ents !== b.ents,
 		bgs: a.bgs !== b.bgs,
 		scripts: !tablesame(a.scripts, b.scripts),
-		midi: !tablesame(a.midi, b.midi)
+		midi: !tablesame(a.midi, b.midi),
+		sheet: a.sheet !== b.sheet
 	};
 }
 
 function same(a, b)
 {
 	const d = diffparts(a, b);
-	return !d.info && !d.defs && !d.ents && !d.bgs && !d.scripts && !d.midi;
+	return !d.info && !d.defs && !d.ents && !d.bgs && !d.scripts && !d.midi && !d.sheet;
 }
 
 /* Open a step.  Nested calls join the step already running, so a drag that
@@ -181,6 +184,7 @@ function apply(s, side)
 	l.backgrounds = JSON.parse(w.bgs);
 	App.doc.scripts = Object.assign({}, w.scripts);
 	App.doc.midi = Object.assign({}, w.midi);
+	App.doc.sheet = w.sheet;
 
 	const c = s.cells, n = side === 'before' ? 1 : 2;
 	for (let i = 0; i < c.length; i += 3)
@@ -189,7 +193,7 @@ function apply(s, side)
 	Grid.sel = -1;
 	Undo.quiet = false;
 	/* PERF-05: a plain cell-diff step (the common case - painting) touches
-	 * none of info/defs/ents/bgs/scripts/midi at all, so diffparts() reports
+	 * none of info/defs/ents/bgs/scripts/midi/sheet at all, so diffparts() reports
 	 * every one of them false and App.refresh() rebuilds only the canvas -
 	 * previously it rebuilt the tab strip, both file lists, the whole
 	 * palette and the inspector, and re-synced every Monaco model, for

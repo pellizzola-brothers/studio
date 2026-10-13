@@ -581,7 +581,7 @@ Grid.draw = function ()
 		const s = Math.round(B * z);
 		if (sx > cw || sy > ch || sx + s < 0 || sy + s < 0)
 			continue;
-		blit(g, entdefs.get(e.def) || {file: PLACEHOLDER}, sx, sy, s, s);
+		blit(g, artof(e.def, App.doc.json.level.entity_definitions), sx, sy, s, s);
 		if (i === Grid.sel) {
 			/* VIS-16: inset by the *widest* the stroke can ever be
 			 * (prefers-contrast: more, SELW_HC) so the dark halo never
@@ -645,6 +645,17 @@ Grid.draw = function ()
  * that names it (lvl.js). */
 function blit(g, t, x, y, w, h)
 {
+	/* A custom definition: a slice of the level's own sheet.png, which
+	 * App.doc replaces whole on import and undo (sheetimage() keys on it). */
+	if (t && t.custom) {
+		const sheet = sheetimage(App.doc.sheet, Grid.redraw);
+		if (ready(sheet))
+			g.drawImage(sheet, 0, t.custom.row * t.custom.size, t.custom.size, t.custom.size, x, y, w, h);
+		else if (!App.doc.sheet)
+			hatch(g, x, y, w, h);
+		return;
+	}
+
 	const im = t ? tex(t.file, Grid.redraw) : null;
 
 	if (ready(im))

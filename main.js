@@ -11,6 +11,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const {pathToFileURL} = require('url');
 const lvl = require('./lvl');
+const cat = require('./catalog');
 const menu = require('./menu');
 const chrome = require('./chrome');
 
@@ -580,6 +581,7 @@ ipcMain.on('menu:row', (e, ctx) => {
 	if (ctx.kind === 'panel') {
 		items.push({label: chrome.oscase('New Script'), click: send('newscript')});
 		items.push({label: chrome.oscase('Import MIDI'), click: send('importmidi')});
+		items.push({label: chrome.oscase('Import Sprite Sheet'), click: send('importsheet')});
 	}
 	/* No x/y: popup() defaults to the current cursor position, which is
 	 * exactly where the click that triggered this happened. */
@@ -866,6 +868,24 @@ ipcMain.handle('midi:import', guard(async () => {
 		name: 'midi/' + path.basename(p),
 		data: new Uint8Array(fs.readFileSync(p))
 	}))};
+}));
+
+/* Sprite sheets arrive as raw PNG bytes; the renderer stitches them onto the
+ * level's own sheet.png (app.js's stitch()).  Only the signature is checked
+ * here, with the same pngsize() lvl.js validates a saved sheet with. */
+ipcMain.handle('sheet:import', guard(async () => {
+	const r = await dialog.showOpenDialog(win, {
+		title: chrome.oscase('Import Sprite Sheet'), properties: ['openFile', 'multiSelections'],
+		filters: [{name: 'PNG', extensions: ['png']}]
+	});
+	if (r.canceled)
+		return CANCEL;
+	return {files: r.filePaths.map(p => {
+		const data = new Uint8Array(fs.readFileSync(p));
+		if (!cat.pngsize(data))
+			throw new Error(path.basename(p) + ' is not a PNG');
+		return {name: path.basename(p), data};
+	})};
 }));
 
 /* UX-18: the other half of "not a one-way trip" - the bytes themselves live

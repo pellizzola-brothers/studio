@@ -109,7 +109,8 @@ Panel.palette = function ()
 	group(el, items, 'items', ITEMS.map(t => ['entity', t.id, t.id, t.file]));
 	group(el, items, 'entities', [
 		...ENTS.map(e => ['entity', e.id, e.id, e.file]),
-		...customdefs().map(d => ['entity', d.id, d.id + ' (custom)', PLACEHOLDER])
+		...customdefs().map(d => ['entity', d.id, d.id + ' (custom)',
+			artof(d.id, App.doc.json.level.entity_definitions)])
 	]);
 
 	const add = document.createElement('button');
@@ -157,6 +158,20 @@ function group(parent, items, name, entries)
 		items.push(cell(parent, kind, id, cellname, file));
 }
 
+/* The first frame of a custom definition's row, as a data URL - or '' while
+ * sheet.png is still decoding or lacks the row (sheetimage() repaints the
+ * palette once it lands). */
+function sliceurl(d)
+{
+	const im = sheetimage(App.doc.sheet, () => { Panel.palette(); Grid.redraw(); });
+	if (!ready(im))
+		return '';
+	const c = document.createElement('canvas');
+	c.width = c.height = d.size;
+	c.getContext('2d').drawImage(im, 0, d.row * d.size, d.size, d.size, 0, 0, d.size, d.size);
+	return c.toDataURL();
+}
+
 /* A11Y-01: a real <button> rather than a clickable <div> - Enter/Space
  * activate it for free, and it is reachable through the roving-tabindex
  * group roving() sets up over Panel.palette()'s full return value. */
@@ -170,8 +185,9 @@ function cell(parent, kind, id, name, file)
 	c.title = name;
 	c.setAttribute('aria-label', name);
 	c.setAttribute('aria-pressed', on ? 'true' : 'false');
-	if (file)
-		c.style.backgroundImage = 'url("' + texurl(file) + '")';
+	const src = file && (file.custom ? sliceurl(file.custom) : texurl(file.file || file));
+	if (src)
+		c.style.backgroundImage = 'url("' + src + '")';
 	c.onclick = () => {
 		Grid.tool = {kind: kind, id: id};
 		Grid.sel = -1;
@@ -208,7 +224,7 @@ function newdef()
 	const script = App.newscript(id + '.lua');
 
 	Undo.act(() => {
-		defs.push({id: id, script: script});
+		defs.push({id: id, script: script, ...spriteof(BLANKDEF)});
 		/* Whatever was selected on the canvas before is not what "+" was
 		 * about - without this, Panel.inspect() below would keep showing
 		 * that entity instead of the definition just created. */
@@ -485,6 +501,29 @@ Panel.assign = function (def, path)
 	App.say(def + ' -> ' + path);
 };
 
+/* The inspector's sprite section for definition `d`: one select over every
+ * built-in sprite plus "custom sheet", and row/size fields once the custom
+ * sheet is chosen.  A built-in row has no fields - the catalog owns them. */
+function spritefields(d)
+{
+	const cat = ENTS.concat(ITEMS);
+	const hit = cat.find(e => e.sheet === d.sheet && e.row === d.row);
+	const custom = d.sheet === 'custom';
+	let h = '<label>sprite<select id="p_sprite">' +
+		(custom || hit ? '' : '<option selected disabled>' + esc(d.sheet) + ' row ' + d.row + '</option>') +
+		cat.map(e => '<option value="' + esc(e.id) + '"' + (!custom && hit === e ? ' selected' : '') +
+			'>' + esc(e.id) + '</option>').join('') +
+		'<option value="@custom"' + (custom ? ' selected' : '') + (custom || App.doc.sheet ? '' : ' disabled') +
+			'>custom sheet</option></select></label>';
+
+	if (custom)
+		h += '<div class="row">' +
+			'<label>row<input id="p_row" type="number" min="0" step="1" value="' + d.row + '"></label>' +
+			'<label>size<input id="p_size" type="number" min="1" step="1" value="' + d.size + '"></label>' +
+			'</div>';
+	return h;
+}
+
 function defview(p, id)
 {
 	const defs = App.doc.json.level.entity_definitions;
@@ -501,6 +540,8 @@ function defview(p, id)
 		'<label>script<select id="p_script">' + scripts.map(s =>
 			'<option' + (s === d.script ? ' selected' : '') + '>' + esc(s) +
 			'</option>').join('') + '</select></label>' +
+		spritefields(d) +
+		'<button class="act" id="p_import">import sprite sheet…</button>' +
 		'<button class="act" id="p_rm">remove definition</button>';
 
 	$('p_id').onchange = ev => Undo.act(() => {
@@ -520,6 +561,33 @@ function defview(p, id)
 		Panel.inspect();
 	}, 'rename definition');
 	$('p_script').onchange = ev => Panel.assign(d.id, ev.target.value);
+	$('p_import').onclick = () => App.importsheet(d.id);
+
+	/* One undo step per change, then everything that shows the art redraws. */
+	function resprite(v, label)
+	{
+		Undo.act(() => {
+			Object.assign(d, v);
+			App.touch();
+		}, label);
+		Panel.palette();
+		Panel.inspect();
+		Grid.redraw();
+	}
+	$('p_sprite').onchange = ev => {
+		const id = ev.target.value;
+		if (id !== '@custom')
+			return resprite(spriteof(id), 'change sprite');
+		/* Whatever was imported last, else the sheet's own first cell: a
+		 * square as tall as the sheet is wide would be a guess, so the
+		 * user is left to type the row. */
+		const last = App.lastsprite;
+		resprite({sheet: 'custom', row: last ? last.row : 0, size: last ? last.size : (pngsize(App.doc.sheet) || {h: 32}).h}, 'change sprite');
+	};
+	if ($('p_row')) {
+		$('p_row').onchange = ev => resprite({row: Math.max(0, Math.round(+ev.target.value) || 0)}, 'change sprite row');
+		$('p_size').onchange = ev => resprite({size: Math.max(1, Math.round(+ev.target.value) || 1)}, 'change sprite size');
+	}
 	$('p_rm').onclick = () => {
 		const es = App.doc.json.level.entities;
 		let removed = 0;

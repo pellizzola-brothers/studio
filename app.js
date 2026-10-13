@@ -373,6 +373,18 @@ App.review = function ()
 		if (d.script.startsWith('scripts/') && App.doc.scripts[d.script] === undefined)
 			w.push('definition "' + d.id + '" points at missing script ' + d.script);
 
+	const sz = pngsize(App.doc.sheet);
+	for (const d of l.entity_definitions) {
+		if (d.sheet !== 'custom')
+			continue;
+		if (!sz)
+			w.push('definition "' + d.id + '" uses the custom sheet, but the level has none');
+		else if ((d.row + 1) * d.size > sz.h)
+			w.push('definition "' + d.id + '" row ' + d.row + ' lies outside sheet.png');
+	}
+	if (sz && !l.entity_definitions.some(d => d.sheet === 'custom'))
+		w.push('sheet.png is not used by any definition');
+
 	const used = new Set();
 	l.entities.forEach((s, n) => {
 		used.add(s.def);
@@ -472,7 +484,7 @@ App.usedef = function (id)
 		return;
 
 	const c = entdefs.get(id);
-	defs.push({id: id, script: c ? c.script : id + '_ai'});
+	defs.push({id: id, script: c ? c.script : id + '_ai', ...spriteof(id)});
 };
 
 /* App.usedef()'s own counterpart: a built-in definition exists only because
@@ -1031,6 +1043,77 @@ async function addmidi()
 	importmidifiles(r.files);
 }
 
+/* Appends each PNG in `files` to the level's sheet.png, below what is there,
+ * and resolves to the new sheet's bytes plus where each file landed.  A file
+ * is one row whose cell is its own height (size), its width holding
+ * width / size frames.  Each row starts at a multiple of its size, so that
+ * sprite (frame, row) of any size sits at (frame * size, row * size) in a
+ * sheet that mixes sizes; the gap that leaves is transparent.  Re-encoded
+ * through a canvas, which is lossless for the pixel art this is for (fully
+ * transparent pixels lose their colour, nothing else does). */
+async function stitch(files)
+{
+	const parts = [];
+	let w = 0, h = 0;
+
+	if (App.doc.sheet) {
+		const bm = await createImageBitmap(new Blob([App.doc.sheet], {type: 'image/png'}));
+		parts.push({bm, y: 0});
+		w = bm.width;
+		h = bm.height;
+	}
+	const added = [];
+	for (const f of files) {
+		const bm = await createImageBitmap(new Blob([f.data], {type: 'image/png'}));
+		const y = Math.ceil(h / bm.height) * bm.height;
+		parts.push({bm, y});
+		added.push({name: f.name, row: y / bm.height, size: bm.height,
+			frames: Math.max(1, Math.floor(bm.width / bm.height))});
+		w = Math.max(w, bm.width);
+		h = y + bm.height;
+	}
+	const c = document.createElement('canvas');
+	c.width = w;
+	c.height = h;
+	const g = c.getContext('2d');
+	for (const p of parts)
+		g.drawImage(p.bm, 0, p.y);
+	const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+	return {bytes: new Uint8Array(await blob.arrayBuffer()), added};
+}
+
+/* Import PNGs onto the level's sheet.png.  With `def` (the definition the
+ * inspector is showing), that definition is pointed at the first sprite
+ * imported; without, the sprites just wait for a definition to claim them. */
+App.importsheet = async function (def)
+{
+	const r = await call(api.sheet());
+	if (!r)
+		return;
+
+	let out;
+	try {
+		out = await stitch(r.files);
+	} catch (e) {
+		App.fail('could not read ' + r.files.map(f => f.name).join(', ') + ' as an image');
+		return;
+	}
+	const defs = App.doc.json.level.entity_definitions;
+	Undo.act(() => {
+		App.doc.sheet = out.bytes;
+		const d = def && defs.find(v => v.id === def);
+		if (d)
+			Object.assign(d, {sheet: 'custom', row: out.added[0].row, size: out.added[0].size});
+		App.touch();
+	}, 'import sprites');
+	App.lastsprite = out.added[out.added.length - 1];
+	Panel.palette();
+	Panel.inspect();
+	Grid.redraw();
+	App.say('imported ' + out.added.map(a => a.name + ' as row ' + a.row + ' · ' +
+		a.size + 'px · ' + a.frames + (a.frames === 1 ? ' frame' : ' frames')).join(', '));
+};
+
 /* NAT-09: a .mid/.midi file dropped onto #midis. */
 async function dropmidi(paths)
 {
@@ -1111,7 +1194,7 @@ async function drop(ev)
 /* Rebuild the views a step actually touched.  Undo calls this after swapping
  * the level out from under the UI.
  *
- * PERF-05: `changed` names which of info/defs/ents/bgs/scripts/midi/cells
+ * PERF-05: `changed` names which of info/defs/ents/bgs/scripts/midi/sheet/cells
  * this particular step's own before/after shots actually differ on
  * (undo.js's diffparts()) - omitted (any other caller) defaults to "assume
  * everything", the unconditional behaviour this used to always run. A
@@ -1121,7 +1204,7 @@ async function drop(ev)
 App.refresh = function (changed)
 {
 	changed = changed || {info: true, defs: true, ents: true, bgs: true,
-		scripts: true, midi: true, cells: true};
+		scripts: true, midi: true, sheet: true, cells: true};
 
 	if (changed.scripts) {
 		App.open = App.open.filter(p => App.doc.scripts[p] !== undefined);
@@ -1132,11 +1215,11 @@ App.refresh = function (changed)
 	}
 	if (changed.scripts || changed.midi)
 		sidebar();
-	if (changed.defs)
+	if (changed.defs || changed.sheet)
 		Panel.palette();
-	if (changed.info || changed.defs || changed.ents || changed.bgs)
+	if (changed.info || changed.defs || changed.ents || changed.bgs || changed.sheet)
 		Panel.inspect();
-	if (changed.cells || changed.bgs || changed.ents)
+	if (changed.cells || changed.bgs || changed.ents || changed.defs || changed.sheet)
 		Grid.redraw();
 	App.recheck();
 	if (App.tab !== 'level')
@@ -1488,6 +1571,8 @@ addEventListener('DOMContentLoaded', () => {
 			addscript();
 		else if (a.action === 'importmidi')
 			addmidi();
+		else if (a.action === 'importsheet')
+			App.importsheet();
 		/* NAT-12: the canvas menu's own remaining action - deleting under a
 		 * right click is now direct (grid.js's onup()), so the menu itself
 		 * only ever offers this one. */
@@ -1534,5 +1619,12 @@ addEventListener('DOMContentLoaded', () => {
 		App.setwarnings(r.warnings);
 		App.say(r.restored ? 'restored last session' : HINT, false, !r.restored);
 		api.uiready();
+		/* The built-in row table in catalog.js against the real sheets: a
+		 * regenerated sheet that moved a row would otherwise write wrong
+		 * rows into every level without a word. */
+		checksheets().then(p => {
+			if (p.length)
+				App.say(p[0] + (p.length > 1 ? ' (+' + (p.length - 1) + ' more)' : ''), true);
+		});
 	})();
 });

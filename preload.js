@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('api', {
 	save:		doc => ipcRenderer.invoke('lvl:save', doc),
 	saveas:		(doc, name) => ipcRenderer.invoke('lvl:saveas', doc, name),
 	midi:		() => ipcRenderer.invoke('midi:import'),
+	sheet:		() => ipcRenderer.invoke('sheet:import'),
 	/* UX-18: exports one already-imported MIDI file back out to a real
 	 * path the user picks - the renderer holds the bytes (App.doc.midi),
 	 * main owns writing them. */
