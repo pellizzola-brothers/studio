@@ -55,7 +55,7 @@ code.js       Monaco host: one model per script.
 app.js        Document state, tabs, file manager, keyboard commands.
 index.html    Markup and script order.
 style.css     Colours sampled from `Pellizzola Brothers.svg`.
-textures/     Clone of github.com/pellizzola-brothers/textures at e66d748.
+textures/     Clone of github.com/pellizzola-brothers/textures at 4ed7851.
 tools/        check.js (npm run check) and probe.js (the headless harness).
 build/        electron-builder resources: the app icon (icon.icns/.ico/.png,
               icons/), referenced from package.json's "build" block.
@@ -68,6 +68,7 @@ A ZIP archive:
 ```
 level.lvl
 ├── level.json
+├── sheet.png    the level's own sprites, one PNG (optional)
 ├── scripts/     user-written Lua
 └── midi/        MIDI files
 ```
@@ -79,7 +80,7 @@ level.lvl
     "level": {
         "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
-        "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai"}],
+        "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai", "sheet": "builtin", "row": 1, "size": 32}],
         "entities": [{"def": "chapeleira", "pos": [500, 1000]}],
         "backgrounds": ["foo"]
     }
@@ -98,6 +99,19 @@ level.lvl
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
   a path into the archive (`scripts/walker.lua`).
+- Every definition carries `sheet`, `row` and `size`, none empty. `sheet` is
+  `"builtin"` (the textures repo's `sheets/entities.png`), `"player"`
+  (`sheets/player.png`) or `"custom"` (`sheet.png` at the archive's root).
+  `size` is the edge, in pixels, of the row's square cell - the largest sprite
+  in it - and frames run across the row. On `"custom"`, sprite `(frame, row)`
+  sits at `(frame * size, row * size)`; the studio's `stitch()` guarantees it
+  by starting each imported row at a multiple of its own size, so one
+  `sheet.png` mixes sizes. The built-in sheets are a padded atlas instead
+  (1px around every cell, rows of unequal height): `row` there is the n-th
+  band of non-transparent pixel rows, and the game must know each row's
+  offset the way it knows block ids. **The game and website must learn all of
+  this.** Levels without the three fields are filled in on open by
+  `sprites()` in `lvl.js`.
 - `pos` is `[x, y]` in world pixels.
 - `information.level_hash` is a SHA-256 (hex) over the archive's *contents*,
   not its bytes: `hashfiles()` in `lvl.js` feeds every file, sorted by name,
@@ -146,6 +160,29 @@ computed one) and moves the camera to that scene's own *left* edge, not
 zoom nowhere near the one that makes a scene *almost* fit, `fitscene()`'s
 centring could land the camera somewhere in the scene's own middle, cutting
 off the very start "fit scene" exists to jump to.
+
+**Sprite sheets: the catalog names the row, the sheet only verifies it.**
+Pixels cannot say that row 1 of `entities.png` is the chapeleira, so
+`ENTS`/`ITEMS` in `catalog.js` carry `sheet`/`row`/`size` for each built-in -
+a contract like a block id and its column. `checksheets()` (run once at boot,
+`app.js`) reads each real sheet with `sheetrows()` (alpha scan, canvas) and
+reports a different row count or a row taller than its `size` in the status
+bar, so a regenerated sheet that moved a row is noticed. Sprites themselves
+are still drawn from the individual files in `textures/`; only a *custom*
+definition is drawn from a slice of `sheet.png` (`artof()` in `catalog.js`,
+`blit()` in `grid.js`, `sliceurl()` in `panel.js`). A custom definition that
+points at a built-in row borrows that built-in's individual file.
+
+**Importing a PNG appends a row to `sheet.png`.** `App.importsheet()`
+(`app.js`; "Import Sprite Sheet" in the file manager's background menu, or the
+button in a definition's inspector, which also assigns the first imported
+row to that definition) sends each PNG through `stitch()`, which re-encodes
+the whole sheet through a canvas: the new row's `size` is the PNG's own
+height, `frames` its width / height, and nothing is resliced. `doc.sheet` is
+a `Uint8Array` replaced whole on import, so `Undo` snapshots it by reference
+(`undo.js`), exactly like a MIDI byte array. `lvl.js` checks only that it is a
+PNG and, in `review()`, that each custom row lies inside it (via `pngsize()`
+in `catalog.js`, IHDR only - no decoder in the main process).
 
 **Block ids are a cross-repo contract.** The table in `textures/README.md` is
 the authority; the game reads the same ids. `catalog.js` deliberately omits

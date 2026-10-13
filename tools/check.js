@@ -55,6 +55,9 @@ async function roundtrip()
 	doc.json.level.block_data[0][539] = '001';	/* scene 26 */
 	doc.scripts['scripts/probe.lua'] = '-- probe\n';
 	doc.midi['midi/probe.mid'] = new Uint8Array([1, 2, 3, 4]);
+	/* A 1x1 PNG, and a definition that points into it. */
+	doc.sheet = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
+	doc.json.level.entity_definitions.push({id: 'probe', script: 'scripts/probe.lua', sheet: 'custom', row: 0, size: 1});
 
 	/* NAT-19: lvl.write() is async now (done, see "Already completed"). */
 	await lvl.write(tmp, doc);
@@ -64,6 +67,8 @@ async function roundtrip()
 	const wl = JSON.parse(Buffer.from(files['level.json']).toString()).level;
 	assert(!('block_data' in wl), 'block_data was written');
 	assert.deepStrictEqual(Object.keys(wl.scenes), ['6', '26'], 'empty scenes were written');
+	assert(files['sheet.png'], 'sheet.png is not at the archive root');
+	assert.deepStrictEqual(Array.from(back.sheet), Array.from(doc.sheet), 'sheet.png did not round-trip');
 	assert(Object.values(wl.scenes).every(a => a.length === lvl.H * 20), 'scene is not 12x20');
 
 	/* write() adds information.level_hash to the file alone (never to doc),
