@@ -9,9 +9,10 @@
  * textures/ no longer ships. */
 'use strict';
 
-/* PLACEHOLDER, tex and ready are consumed by grid.js and panel.js in the
- * renderer's shared global scope (CLAUDE.md), not by this file itself. */
-/* exported PLACEHOLDER, tex, ready */
+/* ENDTILE, PLACEHOLDER, tex and ready are consumed by app.js, grid.js and
+ * panel.js in the renderer's shared global scope (CLAUDE.md), not by this
+ * file itself. */
+/* exported ENDTILE, PLACEHOLDER, tex, ready */
 
 const B = 100;		/* world pixels per block; game/src/main.c draws 100x100 */
 const W = 540;		/* entries per block_data row */
@@ -34,6 +35,8 @@ const BLOCKS = [
 	{id: 14, name: 'silver block',          file: 'blocks/silver_block.png'},
 	{id: 15, name: 'cloud',                 file: 'blocks/strange_cloud1.png'}
 ];
+
+const ENDTILE = 3;	/* the unique goal block; review() in lvl.js and app.js count it */
 
 /* Interactives are entities, not tiles: they are dragged into place and carry a
  * script like any other entity.  The palette keeps them in their own group. */
@@ -111,4 +114,4 @@ function ready(im) { return im && im.complete && im.naturalWidth > 0; }
 /* lvl.js pulls the tables in from the main process; the renderer loads this as
  * a plain script and picks the same names up as globals. */
 if (typeof module !== 'undefined' && module.exports)
-	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, PLAYER_DEF};
+	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, ENDTILE, PLAYER_DEF};

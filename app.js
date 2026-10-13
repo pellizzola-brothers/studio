@@ -351,7 +351,7 @@ App.review = function ()
 	const knownblocks = new Set(BLOCKS.map(b => b.id));
 	const unknownblocks = new Set();
 	for (const id of Grid.a) {
-		if (id === 4) ends++;
+		if (id === ENDTILE) ends++;
 		if (id !== 0 && !knownblocks.has(id))
 			unknownblocks.add(id);
 	}
@@ -365,9 +365,9 @@ App.review = function ()
 		w.push(players + ' player entities placed; only one is allowed');
 
 	if (ends === 0)
-		w.push('no end block placed (tile 4 is required)');
+		w.push('no end block placed (tile ' + ENDTILE + ' is required)');
 	else if (ends > 1)
-		w.push(ends + ' end blocks placed; tile 4 must be unique');
+		w.push(ends + ' end blocks placed; tile ' + ENDTILE + ' must be unique');
 
 	for (const d of l.entity_definitions)
 		if (d.script.startsWith('scripts/') && App.doc.scripts[d.script] === undefined)

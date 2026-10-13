@@ -18,7 +18,7 @@ const Grid = {
 	rect: null,
 	a: null, h: 0,			/* tiles, W columns by h rows */
 	cam: {x: 0, y: 0, z: 0.25},
-	tool: {kind: 'block', id: 2},	/* what the palette has selected */
+	tool: {kind: 'block', id: BLOCKS[0].id},	/* what the palette has selected */
 	sel: -1,			/* index into level.entities, or -1 */
 	hov: {x: -1, y: -1},
 	kcur: null,			/* A11Y-03: the keyboard cursor cell, or null before

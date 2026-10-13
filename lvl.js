@@ -110,7 +110,7 @@ function review(doc)
 	const unknownblocks = new Set();
 	for (const row of l.block_data)
 		for (const id of row) {
-			if (id === '003') ends++;
+			if (id === String(cat.ENDTILE).padStart(3, '0')) ends++;
 			if (id !== '000' && !knownblocks.has(id))
 				unknownblocks.add(id);
 		}
@@ -124,9 +124,9 @@ function review(doc)
 		w.push(players + ' player entities placed; only one is allowed');
 
 	if (ends === 0)
-		w.push('no end block placed (tile 3 is required)');
+		w.push('no end block placed (tile ' + cat.ENDTILE + ' is required)');
 	else if (ends > 1)
-		w.push(ends + ' end blocks placed; tile 3 must be unique');
+		w.push(ends + ' end blocks placed; tile ' + cat.ENDTILE + ' must be unique');
 
 	for (const d of l.entity_definitions)
 		if (d.script.startsWith('scripts/') && doc.scripts[d.script] === undefined)

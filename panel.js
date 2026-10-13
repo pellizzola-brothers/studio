@@ -530,7 +530,7 @@ function defview(p, id)
 					removed++;
 				}
 			defs.splice(defs.indexOf(d), 1);
-			Grid.tool = {kind: 'block', id: 2};
+			Grid.tool = {kind: 'block', id: BLOCKS[0].id};
 			Grid.sel = -1;
 			App.touch();
 		}, 'remove definition');
