@@ -72,7 +72,7 @@ style.css            Design tokens and component styles
 settings.json        Default settings (grid overlay, palette size, etc.)
 textures/            Git submodule — clone of github.com/pellizzola-brothers/textures
 tools/
-  check.js           Validation: collision grep, .lvl round trip, collision check
+  check.js           Validation: collision grep, .lvl round trip
   probe.js           Headless test harness (no GUI) for driving the app via JS
 build/
   icon.icns/.ico/.png   Application icon resources (from textures/characters/pellizola/00.png)

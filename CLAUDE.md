@@ -20,7 +20,7 @@ Two modes share one window, switched by the tab strip:
 npm install     # also fetches the Electron binary on first run
 npm start       # launch
 npm run lint    # eslint . - tabs, 'use strict', no dead vars
-npm run check   # tools/check.js - collision grep, .lvl round trip, migrate()
+npm run check   # tools/check.js - collision grep, .lvl round trip
 npm run dist    # electron-builder - packaged, unsigned artefacts in dist/
 ```
 
