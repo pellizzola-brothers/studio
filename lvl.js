@@ -153,6 +153,7 @@ function review(doc)
 
 	const h = l.block_data.length;
 	const used = new Set();
+	const cells = new Map();
 	l.entities.forEach((s, n) => {
 		used.add(s.def);
 		if (!Array.isArray(s.pos) || s.pos.length !== 2)
@@ -160,6 +161,11 @@ function review(doc)
 		const [x, y] = s.pos;
 		if (x < 0 || y < 0 || x >= cat.W * cat.B || y >= h * cat.B)
 			w.push('entities[' + n + '] ("' + s.def + '") is outside the level bounds');
+		const k = Math.floor(x / cat.B) + ',' + Math.floor(y / cat.B);
+		if (cells.has(k))
+			w.push('entities[' + n + '] ("' + s.def + '") shares a cell with entities[' + cells.get(k) + ']');
+		else
+			cells.set(k, n);
 	});
 	for (const d of l.entity_definitions)
 		if (!used.has(d.id))

@@ -219,6 +219,14 @@ creates the entity and the same gesture carries it to its cell. Snapping keeps
 "one entity, one cell" exactly true, which is what makes the rule above
 well-defined.
 
+**Two entities never share a cell.** Placing one is already refused (a press
+on an entity grabs it), and every path that *moves* one asks `taken()`
+(`grid.js`) first: a drag simply does not enter an occupied cell, a nudge or
+an inspector x/y edit refuses with a status message, and a duplicate goes to
+the next free cell in reading order. A level that arrives with stacked
+entities (hand-edited, or from before this rule) still opens; `review()`
+warns "shares a cell with entities[n]".
+
 **The canvas is keyboard-operable, in parallel with the pointer.**
 `Grid.kcur` (`grid.js`) is a second cursor, independent of the mouse-driven
 `Grid.hov`, that arrow keys move one cell at a time; Return/Space applies
@@ -510,6 +518,12 @@ additions were needed for the app to be usable:
   selecting an entity - which placing one does immediately - swapped that
   view out and hid it; docking it under the canvas instead keeps it visible
   regardless of what is selected.
+- A native context menu on a *custom* definition's palette cell (right-click):
+  "Remove Definition", with how many placed entities go with it. The same
+  `menu:row`/`rowcmd` round trip as the file manager's (`kind: 'def'`), landing
+  in `Panel.removedef()`, which the inspector's "remove definition" button
+  shares - one undo step either way. Built-in cells have no menu: their
+  definition is pulled in and pruned automatically.
 - A search/filter field above the palette (`#palette-filter`), narrowing its
   31+ cells by name as the user types.
 - A context menu in the file manager, opened only by **right**-clicking a

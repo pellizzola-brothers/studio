@@ -188,6 +188,15 @@ function cell(parent, kind, id, name, file)
 	const src = file && (file.custom ? sliceurl(file.custom) : texurl(file.file || file));
 	if (src)
 		c.style.backgroundImage = 'url("' + src + '")';
+	/* A definition the catalog does not own can be removed from here: the
+	 * menu is native (main.js, 'menu:row'), and chooses back through
+	 * 'rowcmd' -> Panel.removedef(). */
+	if (kind === 'entity' && !entdefs.has(id))
+		c.oncontextmenu = ev => {
+			ev.preventDefault();
+			api.rowmenu({kind: 'def', key: id,
+				count: App.doc.json.level.entities.filter(e => e.def === id).length});
+		};
 	c.onclick = () => {
 		Grid.tool = {kind: kind, id: id};
 		Grid.sel = -1;
@@ -441,12 +450,22 @@ function entityview(p, e)
 	 * Tab from p_x straight into p_y), and PERF-01 already gave this drag
 	 * hot path a helper that writes x/y/cell in place for precisely this. */
 	for (const [id, n] of [['p_x', 0], ['p_y', 1]])
-		$(id).onchange = ev => Undo.act(() => {
-			e.pos[n] = Math.round(+ev.target.value / B) * B;
-			App.touch();
-			Grid.redraw();
-			Panel.update(e);
-		}, 'move entity');
+		$(id).onchange = ev => {
+			const v = Math.round(+ev.target.value / B) * B;
+			const to = n ? [e.pos[0], v] : [v, e.pos[1]];
+			if (v === e.pos[n])
+				return Panel.update(e);
+			if (taken(to[0] / B, to[1] / B, Grid.sel)) {
+				App.say('that cell already holds an entity', true);
+				return Panel.update(e);
+			}
+			Undo.act(() => {
+				e.pos[n] = v;
+				App.touch();
+				Grid.redraw();
+				Panel.update(e);
+			}, 'move entity');
+		};
 	$('p_script').onchange = ev => Panel.assign(e.def, ev.target.value);
 	$('p_del').onclick = () => Undo.act(() => {
 		App.doc.json.level.entities.splice(Grid.sel, 1);
@@ -562,6 +581,7 @@ function defview(p, id)
 	}, 'rename definition');
 	$('p_script').onchange = ev => Panel.assign(d.id, ev.target.value);
 	$('p_import').onclick = () => App.importsheet(d.id);
+	$('p_rm').onclick = () => Panel.removedef(d.id);
 
 	/* One undo step per change, then everything that shows the art redraws. */
 	function resprite(v, label)
@@ -588,31 +608,41 @@ function defview(p, id)
 		$('p_row').onchange = ev => resprite({row: Math.max(0, Math.round(+ev.target.value) || 0)}, 'change sprite row');
 		$('p_size').onchange = ev => resprite({size: Math.max(1, Math.round(+ev.target.value) || 1)}, 'change sprite size');
 	}
-	$('p_rm').onclick = () => {
-		const es = App.doc.json.level.entities;
-		let removed = 0;
-		Undo.act(() => {
-			for (let i = es.length - 1; i >= 0; i--)
-				if (es[i].def === d.id) {
-					es.splice(i, 1);
-					removed++;
-				}
-			defs.splice(defs.indexOf(d), 1);
-			Grid.tool = {kind: 'block', id: BLOCKS[0].id};
-			Grid.sel = -1;
-			App.touch();
-		}, 'remove definition');
-		Panel.palette();
-		Panel.inspect();
-		Grid.redraw();
-		/* UX-08: undoable (Undo.act, above), but otherwise silent - clicking
-		 * this was one click for what can be dozens of placed entities. */
-		App.say('removed \'' + d.id + '\'' + (removed ?
-			' and ' + removed + ' ' + (removed === 1 ? 'entity' : 'entities') +
-				' · ' + (api.platform === 'darwin' ? '⌘Z' : 'Ctrl+Z') + ' to undo' :
-			''));
-	};
 }
+
+/* Removes definition `id` and every entity placed from it, as one undo step.
+ * Reached from the inspector's "remove definition" button and from the
+ * palette cell's right-click menu (cell(), above). */
+Panel.removedef = function (id)
+{
+	const defs = App.doc.json.level.entity_definitions;
+	const d = defs.find(v => v.id === id);
+	if (!d)
+		return;
+	const es = App.doc.json.level.entities;
+	let removed = 0;
+
+	Undo.act(() => {
+		for (let i = es.length - 1; i >= 0; i--)
+			if (es[i].def === d.id) {
+				es.splice(i, 1);
+				removed++;
+			}
+		defs.splice(defs.indexOf(d), 1);
+		Grid.tool = {kind: 'block', id: BLOCKS[0].id};
+		Grid.sel = -1;
+		App.touch();
+	}, 'remove definition');
+	Panel.palette();
+	Panel.inspect();
+	Grid.redraw();
+	/* UX-08: undoable (Undo.act, above), but otherwise silent - clicking
+	 * this was one click for what can be dozens of placed entities. */
+	App.say('removed \'' + d.id + '\'' + (removed ?
+		' and ' + removed + ' ' + (removed === 1 ? 'entity' : 'entities') +
+			' · ' + (api.platform === 'darwin' ? '⌘Z' : 'Ctrl+Z') + ' to undo' :
+		''));
+};
 
 /* Live-edit a text field without rebuilding the panel under the caret.  The
  * undo step spans the whole visit to the field, so typing a name undoes as a

@@ -564,6 +564,11 @@ ipcMain.on('menu:row', (e, ctx) => {
 		});
 		items.push({type: 'separator'});
 	}
+	/* A custom definition, right-clicked in the palette.  ctx.count is how
+	 * many placed entities go with it - a number, not chrome text. */
+	if (ctx.kind === 'def')
+		items.push({label: chrome.oscase('Remove Definition') +
+			(ctx.count ? ' (' + ctx.count + ' placed)' : ''), click: send('removedef')});
 	if (ctx.kind === 'script' || ctx.kind === 'midi') {
 		items.push({label: chrome.oscase('Rename'), click: send('rename')});
 		items.push({label: chrome.oscase('Delete'), click: send('delete')});

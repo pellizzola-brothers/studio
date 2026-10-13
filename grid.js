@@ -129,6 +129,16 @@ function entat(cx, cy)
 	return -1;
 }
 
+/* One entity, one cell: does (cx, cy) hold an entity other than `self`?
+ * Every path that moves an entity - drag, nudge, duplicate, the inspector's
+ * x/y - refuses a cell for which this is true; placing a new one is already
+ * refused, since a press on an entity grabs it instead. */
+function taken(cx, cy, self)
+{
+	const i = entat(cx, cy);
+	return i >= 0 && i !== self;
+}
+
 /* An entity always wins the cell it stands on: painting under one leaves air.
  * The game applies the same rule when loading, so this only mirrors it. */
 function setblock(cx, cy, id)
@@ -845,6 +855,10 @@ Grid.nudge = function (dx, dy, coarse)
 	const ny = Math.max(0, Math.min((Grid.h - 1) * B, e.pos[1] + dy * step));
 	if (nx === e.pos[0] && ny === e.pos[1])
 		return;
+	if (taken(nx / B, ny / B, Grid.sel)) {
+		App.say('that cell already holds an entity', true);
+		return;
+	}
 
 	Undo.act(() => {
 		e.pos[0] = nx;
@@ -857,7 +871,8 @@ Grid.nudge = function (dx, dy, coarse)
 };
 
 /* UX-05: duplicate the selected entity, offset by one cell so the copy is
- * never stacked invisibly on top of the original. */
+ * never stacked invisibly on top of the original - or on any other entity:
+ * from that cell on, the next free one in reading order. */
 Grid.duplicate = function ()
 {
 	const e = elist()[Grid.sel];
@@ -865,10 +880,18 @@ Grid.duplicate = function ()
 		App.say('nothing selected to duplicate', true);
 		return;
 	}
-	const pos = [
-		Math.min((W - 1) * B, e.pos[0] + B),
-		Math.min((Grid.h - 1) * B, e.pos[1] + B)
-	];
+	const start = Math.min(Grid.h - 1, Math.floor(e.pos[1] / B) + 1) * W +
+		Math.min(W - 1, Math.floor(e.pos[0] / B) + 1);
+	let pos = null;
+	for (let k = 0; k < W * Grid.h && !pos; k++) {
+		const n = (start + k) % (W * Grid.h);
+		if (entat(n % W, Math.floor(n / W)) < 0)
+			pos = [(n % W) * B, Math.floor(n / W) * B];
+	}
+	if (!pos) {
+		App.say('no free cell to duplicate into', true);
+		return;
+	}
 
 	Undo.act(() => {
 		App.usedef(e.def);
@@ -1090,6 +1113,8 @@ function onmove(ev)
 		const e = elist()[Grid.sel];
 		if (e.pos[0] === c.x * B && e.pos[1] === c.y * B)
 			return;
+		if (taken(c.x, c.y, Grid.sel))
+			return;			/* it stays on the last free cell */
 		e.pos[0] = c.x * B;
 		e.pos[1] = c.y * B;
 		setblock(c.x, c.y, 0);		/* the block under it gives way */

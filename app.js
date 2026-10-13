@@ -386,6 +386,7 @@ App.review = function ()
 		w.push('sheet.png is not used by any definition');
 
 	const used = new Set();
+	const cells = new Map();
 	l.entities.forEach((s, n) => {
 		used.add(s.def);
 		if (!Array.isArray(s.pos) || s.pos.length !== 2)
@@ -393,6 +394,11 @@ App.review = function ()
 		const [x, y] = s.pos;
 		if (x < 0 || y < 0 || x >= W * B || y >= Grid.h * B)
 			w.push('entities[' + n + '] ("' + s.def + '") is outside the level bounds');
+		const k = Math.floor(x / B) + ',' + Math.floor(y / B);
+		if (cells.has(k))
+			w.push('entities[' + n + '] ("' + s.def + '") shares a cell with entities[' + cells.get(k) + ']');
+		else
+			cells.set(k, n);
 	});
 	for (const d of l.entity_definitions)
 		if (!used.has(d.id))
@@ -1573,6 +1579,8 @@ addEventListener('DOMContentLoaded', () => {
 			addmidi();
 		else if (a.action === 'importsheet')
 			App.importsheet();
+		else if (a.action === 'removedef')
+			Panel.removedef(a.key);
 		/* NAT-12: the canvas menu's own remaining action - deleting under a
 		 * right click is now direct (grid.js's onup()), so the menu itself
 		 * only ever offers this one. */
