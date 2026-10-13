@@ -3,10 +3,10 @@
  * Block ids follow the contract documented in textures/README.md; the game
  * reads the same table, so an id may never be reused or renumbered here alone.
  *
- * Deliberately absent: the six interactives/*_flag sprites. They ship in the
- * texture library but textures/README.md assigns them no id, and inventing
- * one here would silently disagree with the game. Give them ids in all three
- * repos at once, then add them below. */
+ * Deliberately absent: blocks/lucky_block.png, gold, bronze and the
+ * interactives/*_flag sprites were dropped from the texture library, as were
+ * star.png and enemies/gombacrack*.png.  Nothing here may name a file
+ * textures/ no longer ships. */
 'use strict';
 
 /* PLACEHOLDER, tex and ready are consumed by grid.js and panel.js in the
@@ -39,40 +39,43 @@ const BLOCKS = [
  * script like any other entity.  The palette keeps them in their own group. */
 const ITEMS = [
 	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza.png'},
-	{id: 'coin',  script: 'coin_item',  file: 'interactives/PELLIZZOLA-COIN!!!!!.png'},
-	{id: 'soda',  script: 'soda_item',  file: 'interactives/energéticoBrothers(estrela).png'},
-	{id: 'star',  script: 'star_item',  file: 'interactives/star.png'}
+	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin.png'},
+	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink.png'}
 ];
 
 /* They were tile ids 43-46 once.  Levels written back then are converted on
- * load, so the ids stay reserved and must not be handed to a block. */
-const ITEMTILE = {43: 'pizza', 44: 'coin', 45: 'soda', 46: 'star'};
+ * load, so the ids stay reserved and must not be handed to a block.  46 (star)
+ * lost its sprite and entity, so it is no longer converted; review() flags it. */
+const ITEMTILE = {43: 'pizza', 44: 'coin', 45: 'soda'};
 
 /* Built-in entity definitions.  `script` is a bare name: the game resolves it
  * against its own script table.  Custom definitions instead carry a path into
  * the level's own scripts/ directory. */
 const PLAYER_DEF = 'player';	/* singleton: at most one entity may ever use it */
 const ENTS = [
-	/* leandro.png - confirmed the canonical player-character sprite via
-	 * textures/ui/main_menu.png's own labelled callout (CLAUDE.md's build
-	 * icon derivation reasons the same way). */
-	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/leandro.png'},
-	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira.png'},
-	{id: 'abu',        script: 'abu_ai',        file: 'enemies/abú.png'},
-	{id: 'gombacrack', script: 'gombacrack_ai', file: 'enemies/gombacrack.png'},
-	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta.png'},
-	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/pinguim.png'},
-	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet.png'}
+	/* Each character/enemy is a directory of frames now; 00.png is the idle
+	 * one.  characters/pellizola/ was leandro.png, the canonical player sprite
+	 * (textures/ui/main_menu.png's own labelled callout).  The ids and scripts
+	 * are the game's and predate the renames (erick was abu, tux pinguim), so
+	 * only the files moved. */
+	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizola/00.png'},
+	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png'},
+	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png'},
+	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png'},
+	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/tux/00.png'},
+	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet/00.png'}
 ];
 
-/* The three presets the schema allows, mapped onto real backdrop art. */
+/* The three presets the schema allows, mapped onto real backdrop art.  The
+ * library ships a single backdrop now, so all three share it until more land. */
 const BGS = [
-	{id: 'foo', file: 'backdrops/background.png'},
-	{id: 'bar', file: 'backdrops/Mountains-V1.png'},
-	{id: 'baz', file: 'backdrops/scen(beta).png'}
+	{id: 'foo', file: 'backdrops/00.png'},
+	{id: 'bar', file: 'backdrops/00.png'},
+	{id: 'baz', file: 'backdrops/00.png'}
 ];
 
-const PLACEHOLDER = 'icons/placeholder.png';
+/* icons/ is gone from the library; any real sprite will do for "no art". */
+const PLACEHOLDER = 'characters/plant/00.png';
 
 const tiles = new Map();	/* block id -> catalog entry */
 for (const t of BLOCKS)
@@ -82,7 +85,7 @@ const entdefs = new Map();	/* definition id -> catalog entry */
 for (const e of ENTS.concat(ITEMS))
 	entdefs.set(e.id, e);
 
-/* Texture names carry accents, spaces and '!'; encode each segment. */
+/* Encode each path segment, in case a name is not URL-safe. */
 function texurl(file)
 {
 	return 'textures/' + file.split('/').map(encodeURIComponent).join('/');

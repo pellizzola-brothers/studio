@@ -75,7 +75,7 @@ tools/
   check.js           Validation: collision grep, .lvl round trip, collision check
   probe.js           Headless test harness (no GUI) for driving the app via JS
 build/
-  icon.icns/.ico/.png   Application icon resources (from textures/characters/leandro.png)
+  icon.icns/.ico/.png   Application icon resources (from textures/characters/pellizola/00.png)
   icons/             macOS/Windows icon sets
 ```
 
@@ -184,7 +184,7 @@ level.lvl
 
 **Every row in `block_data` is exactly 540 cells wide** (9 scenes × 60 columns per scene). Height is free.
 
-**Blocks** live in `block_data`. **Enemies and collectibles** (pizza, coins, soda, stars) are entities — dragged into place like the enemies, not painted as tiles.
+**Blocks** live in `block_data`. **Enemies and collectibles** (pizza, coins, soda) are entities — dragged into place like the enemies, not painted as tiles.
 
 ## Workflow
 
