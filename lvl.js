@@ -238,13 +238,16 @@ function sizesout(l)
 			delete c.size;
 			return c;
 		}),
-		entities: l.entities.map(e => ({...e, size: sizes.get(e.def)})),
+		entities: l.entities.map(e => ({...e, size: [sizes.get(e.def), sizes.get(e.def)]})),
 	};
 }
 
 /* The reverse of sizesout(): each definition takes its size from the entities
  * that name it, and those entities give it back. Every entity of one
- * definition must agree, since memory holds only one size per definition. */
+ * definition must agree, since memory holds only one size per definition.
+ * ponytail: memory and the renderer are square-only (one edge per cell), so
+ * a [w, h] with w !== h is refused here; lift that when grid.js draws
+ * non-square cells. */
 function sizesin(l)
 {
 	const defs = new Map(l.entity_definitions.filter(d => d).map(d => [d.id, d]));
@@ -255,10 +258,15 @@ function sizesin(l)
 		const d = defs.get(s.def);
 		if (!d)
 			return;			/* validate() reports the unknown definition */
+		const sz = s.size;
+		if (!Array.isArray(sz) || sz.length !== 2 || !Number.isInteger(sz[0]) || sz[0] < 1 || sz[1] !== sz[0]) {
+			errs.push('entities[' + n + '].size must be [n, n] with n a positive integer');
+			return;
+		}
 		if (d.size === undefined)
-			d.size = s.size;
-		else if (d.size !== s.size)
-			errs.push('entities[' + n + '] size ' + s.size + ' disagrees with definition "' + d.id + '" size ' + d.size);
+			d.size = sz[0];
+		else if (d.size !== sz[0])
+			errs.push('entities[' + n + '] size ' + sz[0] + ' disagrees with definition "' + d.id + '" size ' + d.size);
 		delete s.size;
 	});
 	return errs;
@@ -414,12 +422,13 @@ function formatlevel(j)
 	const rowmarks = keys.map(k => '@@SCENE' + k + '@@');
 	const ents = j.level.entities;
 	const posmarks = ents.map((_, i) => '@@ENTPOS' + i + '@@');
+	const sizemarks = ents.map((_, i) => '@@ENTSIZE' + i + '@@');
 	const shim = {
 		...j,
 		level: {
 			...j.level,
 			scenes: Object.fromEntries(keys.map((k, i) => [k, rowmarks[i]])),
-			entities: ents.map((e, i) => ({...e, pos: posmarks[i]}))
+			entities: ents.map((e, i) => ({...e, pos: posmarks[i], ...(e.size && {size: sizemarks[i]})}))
 		}
 	};
 	let s = JSON.stringify(shim, null, 4);
@@ -432,6 +441,8 @@ function formatlevel(j)
 	});
 	ents.forEach((e, i) => {
 		s = s.replace('"' + posmarks[i] + '"', '[' + e.pos.join(', ') + ']');
+		if (e.size)
+			s = s.replace('"' + sizemarks[i] + '"', '[' + e.size.join(', ') + ']');
 	});
 	return s;
 }
