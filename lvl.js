@@ -169,7 +169,7 @@ function review(doc)
 	});
 	for (const d of l.entity_definitions)
 		if (!used.has(d.id))
-			w.push('definition "' + d.id + '" is not used by any entity');
+			w.push('definition "' + d.id + '" is not used by any entity, so it will not be saved');
 
 	const usedscripts = new Set(l.entity_definitions.map(d => d.script));
 	for (const p of Object.keys(doc.scripts))
@@ -222,6 +222,46 @@ function sprites(l)
 	for (const d of l.entity_definitions)
 		if (d && typeof d === 'object' && d.sheet === undefined && d.row === undefined && d.size === undefined)
 			Object.assign(d, cat.spriteof(d.id));
+}
+
+/* On disk a size belongs to each placed entity, not its definition. In memory
+ * the definition keeps it (the palette and the grid draw from it), so only
+ * these two functions move it. A definition no entity uses has nowhere to
+ * keep its size on disk, so write() leaves it out. */
+function sizesout(l)
+{
+	const sizes = new Map(l.entity_definitions.map(d => [d.id, d.size]));
+	const used = new Set(l.entities.map(e => e.def));
+	return {
+		entity_definitions: l.entity_definitions.filter(d => used.has(d.id)).map(d => {
+			const c = {...d};
+			delete c.size;
+			return c;
+		}),
+		entities: l.entities.map(e => ({...e, size: sizes.get(e.def)})),
+	};
+}
+
+/* The reverse of sizesout(): each definition takes its size from the entities
+ * that name it, and those entities give it back. Every entity of one
+ * definition must agree, since memory holds only one size per definition. */
+function sizesin(l)
+{
+	const defs = new Map(l.entity_definitions.filter(d => d).map(d => [d.id, d]));
+	const errs = [];
+	l.entities.forEach((s, n) => {
+		if (!s || s.size === undefined)
+			return;
+		const d = defs.get(s.def);
+		if (!d)
+			return;			/* validate() reports the unknown definition */
+		if (d.size === undefined)
+			d.size = s.size;
+		else if (d.size !== s.size)
+			errs.push('entities[' + n + '] size ' + s.size + ' disagrees with definition "' + d.id + '" size ' + d.size);
+		delete s.size;
+	});
+	return errs;
 }
 
 /* Lift any leftover interactive tiles out of block_data and into entities. */
@@ -319,7 +359,7 @@ function read(p)
 	if (lv && lv.scenes && typeof lv.scenes === 'object' && !Array.isArray(lv.scenes) && Object.keys(lv.scenes).length)
 		unscenes(lv);
 	migrate(doc.json);
-	const errs = validate(doc.json);
+	const errs = (lv ? sizesin(lv) : []).concat(validate(doc.json));
 	if (errs.length)
 		fail('invalid level.json in ' + p + ':', errs);
 	return doc;
@@ -494,8 +534,8 @@ async function write(p, doc)
 	const sc = scenes(doc.json.level);
 	if (!Object.keys(sc).length)
 		fail('refusing to save an empty level:', ['every scene is empty (no blocks or entities)']);
-	const {information, entity_definitions, entities, backgrounds} = doc.json.level;
-	const json = {...doc.json, level: {information, scenes: sc, entity_definitions, entities, backgrounds}};
+	const {information, backgrounds} = doc.json.level;
+	const json = {...doc.json, level: {information, scenes: sc, ...sizesout(doc.json.level), backgrounds}};
 	const hash = hashfiles(filesof(doc, json));
 	const data = await pack(filesof(doc, withhash(json, hash)));
 

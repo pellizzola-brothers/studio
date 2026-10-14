@@ -58,6 +58,7 @@ async function roundtrip()
 	/* A 1x1 PNG, and a definition that points into it. */
 	doc.sheet = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
 	doc.json.level.entity_definitions.push({id: 'probe', script: 'scripts/probe.lua', sheet: 'custom', row: 0, size: 1});
+	doc.json.level.entities.push({def: 'probe', pos: [12000, 0]});	/* column 120 (x100), scene 6 */
 
 	/* NAT-19: lvl.write() is async now (done, see "Already completed"). */
 	await lvl.write(tmp, doc);

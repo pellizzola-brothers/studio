@@ -402,7 +402,7 @@ App.review = function ()
 	});
 	for (const d of l.entity_definitions)
 		if (!used.has(d.id))
-			w.push('definition "' + d.id + '" is not used by any entity');
+			w.push('definition "' + d.id + '" is not used by any entity, so it will not be saved');
 
 	const usedscripts = new Set(l.entity_definitions.map(d => d.script));
 	for (const p of Object.keys(App.doc.scripts))

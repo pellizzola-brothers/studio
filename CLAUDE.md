@@ -80,8 +80,8 @@ level.lvl
     "level": {
         "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
-        "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai", "sheet": "builtin", "row": 1, "size": 32}],
-        "entities": [{"def": "chapeleira", "pos": [500, 1000]}],
+        "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai", "sheet": "builtin", "row": 1}],
+        "entities": [{"def": "chapeleira", "pos": [500, 1000], "size": 32}],
         "backgrounds": ["foo"]
     }
 }
@@ -99,11 +99,14 @@ level.lvl
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
   a path into the archive (`scripts/walker.lua`).
-- Every definition carries `sheet`, `row` and `size`, none empty. `sheet` is
+- Every definition carries `sheet` and `row`, none empty. `sheet` is
   `"builtin"` (the textures repo's `sheets/entities.png`), `"player"`
   (`sheets/player.png`) or `"custom"` (`sheet.png` at the archive's root).
-  `size` is the edge, in pixels, of the row's square cell - the largest sprite
-  in it - and frames run across the row. On `"custom"`, sprite `(frame, row)`
+  Every entity carries `size` on disk, the same for each entity of one
+  definition (`sizesout()`/`sizesin()` in `lvl.js` move it between the two;
+  in memory the definition holds it). A definition no entity uses is not
+  written at all. `size` is the edge, in pixels, of the row's square cell -
+  the largest sprite in it - and frames run across the row. On `"custom"`, sprite `(frame, row)`
   sits at `(frame * size, row * size)`; the studio's `stitch()` guarantees it
   by starting each imported row at a multiple of its own size, so one
   `sheet.png` mixes sizes. The built-in sheets are a padded atlas instead
