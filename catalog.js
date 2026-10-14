@@ -65,11 +65,11 @@ const PLAYER_DEF = 'player';	/* singleton: at most one entity may ever use it */
  * against the real sheet.  Sprites are still drawn from `file`. */
 const ENTS = [
 	/* Each character/enemy is a directory of frames now; 00.png is the idle
-	 * one.  characters/pellizola/ was leandro.png, the canonical player sprite
+	 * one.  characters/pellizzola/ was leandro.png, the canonical player sprite
 	 * (textures/ui/main_menu.png's own labelled callout).  The ids and scripts
 	 * are the game's and predate the renames (erick was abu, tux pinguim), so
 	 * only the files moved. */
-	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizola/00.png', sheet: 'player',  row: 0, size: 32},
+	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizzola/00.png', sheet: 'player',  row: 0, size: 32},
 	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png', sheet: 'builtin', row: 1, size: 32},
 	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png',      sheet: 'builtin', row: 2, size: 64},
 	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png',     sheet: 'builtin', row: 3, size: 32},
