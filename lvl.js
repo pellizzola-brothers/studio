@@ -82,8 +82,8 @@ function validate(j)
 		}
 		if (!defs.has(s.def))
 			e.push('entities[' + n + '] references unknown definition "' + s.def + '"');
-		if (!Array.isArray(s.pos) || s.pos.length !== 2 || !s.pos.every(isnum))
-			e.push('entities[' + n + '].pos must be [x, y]');
+		if (!Array.isArray(s.pos) || s.pos.length !== 2 || !s.pos.every(v => isnum(v) && v % cat.B === 0))
+			e.push('entities[' + n + '].pos must be [x, y] in world pixels, on the block grid');
 	});
 
 	if (!Array.isArray(l.backgrounds))
@@ -227,7 +227,10 @@ function sprites(l)
 /* On disk a size belongs to each placed entity, not its definition. In memory
  * the definition keeps it (the palette and the grid draw from it), so only
  * these two functions move it. A definition no entity uses has nowhere to
- * keep its size on disk, so write() leaves it out. */
+ * keep its size on disk, so write() leaves it out.
+ * A position is written in block cells, not world pixels: [0, 0] is the first
+ * block of the first row. Memory keeps pixels, so posin() (below) is the
+ * reverse. */
 function sizesout(l)
 {
 	const sizes = new Map(l.entity_definitions.map(d => [d.id, d.size]));
@@ -238,8 +241,34 @@ function sizesout(l)
 			delete c.size;
 			return c;
 		}),
-		entities: l.entities.map(e => ({...e, size: [sizes.get(e.def), sizes.get(e.def)]})),
+		entities: l.entities.map(e => ({
+			...e,
+			pos: e.pos.map(v => v / cat.B),
+			size: [sizes.get(e.def), sizes.get(e.def)]
+		})),
 	};
+}
+
+/* The reverse of sizesout()'s position half: a disk pos is [col, row] in
+ * block cells, and becomes world pixels here. Runs before migrate(), so the
+ * pixels items() adds for a legacy level are never scaled a second time.
+ * Any integer is accepted, out-of-bounds included - review() warns about
+ * those, and refusing them here would leave a saved level unopenable. */
+function posin(l)
+{
+	const errs = [];
+	if (!Array.isArray(l.entities))
+		return errs;
+	l.entities.forEach((s, n) => {
+		if (!s || !Array.isArray(s.pos) || s.pos.length !== 2)
+			return;			/* validate() reports the shape error */
+		if (!s.pos.every(Number.isInteger)) {
+			errs.push('entities[' + n + '].pos must be [col, row] in whole blocks');
+			return;
+		}
+		s.pos = s.pos.map(v => v * cat.B);
+	});
+	return errs;
 }
 
 /* The reverse of sizesout(): each definition takes its size from the entities
@@ -366,8 +395,9 @@ function read(p)
 	const lv = doc.json.level;
 	if (lv && lv.scenes && typeof lv.scenes === 'object' && !Array.isArray(lv.scenes) && Object.keys(lv.scenes).length)
 		unscenes(lv);
+	const poserrs = lv ? posin(lv) : [];
 	migrate(doc.json);
-	const errs = (lv ? sizesin(lv) : []).concat(validate(doc.json));
+	const errs = poserrs.concat(lv ? sizesin(lv) : [], validate(doc.json));
 	if (errs.length)
 		fail('invalid level.json in ' + p + ':', errs);
 	return doc;

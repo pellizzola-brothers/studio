@@ -81,7 +81,7 @@ level.lvl
         "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
         "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai", "sheet": "builtin", "row": 1}],
-        "entities": [{"def": "chapeleira", "pos": [500, 1000], "size": [32, 32]}],
+        "entities": [{"def": "chapeleira", "pos": [5, 10], "size": [32, 32]}],
         "backgrounds": ["foo"]
     }
 }
@@ -116,7 +116,10 @@ level.lvl
   offset the way it knows block ids. **The game and website must learn all of
   this.** Levels without the three fields are filled in on open by
   `sprites()` in `lvl.js`.
-- `pos` is `[x, y]` in world pixels.
+- `pos` is `[col, row]` in block cells on disk: `[0, 0]` is the first block of
+  the first row. In memory it stays `[x, y]` in world pixels (`B` per cell);
+  `sizesout()` divides and `posin()` in `lvl.js` multiplies back. **The game
+  and website must learn this too.**
 - `information.level_hash` is a SHA-256 (hex) over the archive's *contents*,
   not its bytes: `hashfiles()` in `lvl.js` feeds every file, sorted by name,
   as `name NUL length NUL bytes`, with `level.json` replaced by compact
