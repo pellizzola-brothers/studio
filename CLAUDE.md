@@ -80,7 +80,7 @@ level.lvl
     "level": {
         "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
-        "entity_definitions": [{"id": "chapeleira", "script": "chapeleira_ai", "sheet": "builtin", "row": 1}],
+        "entity_definitions": {"chapeleira": {"script": "chapeleira_ai", "sprite": {"sheet": "builtin", "row": 1}}},
         "entities": [{"def": "chapeleira", "pos": [5, 10], "size": [32, 32]}],
         "backgrounds": ["foo"]
     }
@@ -99,10 +99,12 @@ level.lvl
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
   a path into the archive (`scripts/walker.lua`).
-- Every definition carries `sheet` and `row`, none empty. `sheet` is
+- Every definition carries `sprite.sheet` and `sprite.row`, none empty. `sheet` is
   `"builtin"` (the textures repo's `sheets/entities.png`), `"player"`
   (`sheets/player.png`) or `"custom"` (`sheet.png` at the archive's root).
-  Every entity carries `size` on disk as a `[w, h]` pair, like `pos`, the same
+  Definitions are an object keyed by id, each `{script, sprite: {sheet, row}}`
+  (`sizesout()`/`defsin()` in `lvl.js` convert to and from the flat array
+  memory keeps). Every entity carries `size` on disk as a `[w, h]` pair, like `pos`, the same
   for each entity of one definition and equal on both sides for now
   (`sizesout()`/`sizesin()` in `lvl.js` move it between the two; in memory the
   definition holds a single square edge, the renderer being square-only). A definition no entity uses is not

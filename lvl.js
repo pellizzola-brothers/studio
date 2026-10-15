@@ -228,6 +228,9 @@ function sprites(l)
  * the definition keeps it (the palette and the grid draw from it), so only
  * these two functions move it. A definition no entity uses has nowhere to
  * keep its size on disk, so write() leaves it out.
+ * On disk entity_definitions is an object keyed by id, each {script, sprite:
+ * {sheet, row}}; memory keeps the array of flat {id, script, sheet, row, size}
+ * the renderer reads. defsin() (below) is the reverse of that half.
  * A position is written in block cells, not world pixels: [0, 0] is the first
  * block of the first row. Memory keeps pixels, so posin() (below) is the
  * reverse. */
@@ -236,17 +239,32 @@ function sizesout(l)
 	const sizes = new Map(l.entity_definitions.map(d => [d.id, d.size]));
 	const used = new Set(l.entities.map(e => e.def));
 	return {
-		entity_definitions: l.entity_definitions.filter(d => used.has(d.id)).map(d => {
-			const c = {...d};
-			delete c.size;
-			return c;
-		}),
+		entity_definitions: Object.fromEntries(l.entity_definitions
+			.filter(d => used.has(d.id))
+			.map(d => [d.id, {script: d.script, sprite: {sheet: d.sheet, row: d.row}}])),
 		entities: l.entities.map(e => ({
 			...e,
 			pos: e.pos.map(v => v / cat.B),
 			size: [sizes.get(e.def), sizes.get(e.def)]
 		})),
 	};
+}
+
+/* The reverse of sizesout()'s definition half. An array is a level written
+ * before the object form, already in memory's shape, so it passes through.
+ * Otherwise each key becomes an id, and a missing sprite stays undefined for
+ * sprites() to fill from the catalog, as it does for any older definition. */
+function defsin(l)
+{
+	const d = l.entity_definitions;
+	if (!d || typeof d !== 'object' || Array.isArray(d))
+		return;
+	l.entity_definitions = Object.entries(d).map(([id, v]) => ({
+		id,
+		script: v && v.script,
+		sheet: v && v.sprite && v.sprite.sheet,
+		row: v && v.sprite && v.sprite.row
+	}));
 }
 
 /* The reverse of sizesout()'s position half: a disk pos is [col, row] in
@@ -395,6 +413,8 @@ function read(p)
 	const lv = doc.json.level;
 	if (lv && lv.scenes && typeof lv.scenes === 'object' && !Array.isArray(lv.scenes) && Object.keys(lv.scenes).length)
 		unscenes(lv);
+	if (lv)
+		defsin(lv);
 	const poserrs = lv ? posin(lv) : [];
 	migrate(doc.json);
 	const errs = poserrs.concat(lv ? sizesin(lv) : [], validate(doc.json));
