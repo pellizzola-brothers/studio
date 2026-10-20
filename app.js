@@ -1319,8 +1319,8 @@ App.openlevel = async function ()
 
 /* NAT-06: File -> Open Recent (menu.js) already knows the path - still has to
  * cross the same unsaved-changes guard as any other open before replacing the
- * document. */
-App.openrecent = async function (p)
+ * document. `quiet` (Quick Load, menu.js) skips the "opened" status line. */
+App.openrecent = async function (p, quiet)
 {
 	if (!await guard())
 		return;
@@ -1329,7 +1329,8 @@ App.openrecent = async function (p)
 		return;
 	App.setdoc(r.doc, r.path);
 	App.setwarnings(r.warnings);
-	App.say('opened ' + r.path);
+	if (!quiet)
+		App.say('opened ' + r.path);
 };
 
 App.save = async function ()
@@ -1599,7 +1600,7 @@ addEventListener('DOMContentLoaded', () => {
 		App.setwarnings(r.warnings);
 		App.say('recovered unsaved changes - save to keep them', true);
 	});
-	api.onopenrecent(p => App.openrecent(p));
+	api.onopenrecent((p, quiet) => App.openrecent(p, quiet));
 
 	/* UX-09: restores the last session's document instead of always landing
 	 * on an untitled blank one - lvl:init (main.js) falls back to the same

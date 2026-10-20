@@ -31,7 +31,7 @@ contextBridge.exposeInMainWorld('api', {
 	 * than opening it directly in main - it still has to cross the
 	 * renderer's own unsaved-changes guard first, like any other open. */
 	openpath:	p => ipcRenderer.invoke('lvl:openpath', p),
-	onopenrecent:	fn => ipcRenderer.on('open-recent', (e, p) => fn(p)),
+	onopenrecent:	fn => ipcRenderer.on('open-recent', (e, p, quiet) => fn(p, quiet)),
 	save:		doc => ipcRenderer.invoke('lvl:save', doc),
 	saveas:		(doc, name) => ipcRenderer.invoke('lvl:saveas', doc, name),
 	midi:		() => ipcRenderer.invoke('midi:import'),

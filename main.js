@@ -65,6 +65,11 @@ else
 		const p = argvpath(argv);
 		if (p)
 			openpath(p);
+		const q = quickpathof(argv);
+		if (q) {
+			quickpath = q;
+			menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
+		}
 	});
 
 let win = null;
@@ -106,8 +111,21 @@ function openpath(p)
  * names one. */
 function argvpath(argv)
 {
-	return argv.find(a => /\.(lvl|json)$/i.test(a));
+	return argv.find((a, i) => /\.(lvl|json)$/i.test(a) && argv[i - 1] !== '--quick-load');
 }
+
+/* --quick-load <file.lvl>: the level ALT+L (menu.js) reopens. Only the path
+ * is taken here - nothing is read at launch, so starting up costs nothing
+ * extra. A missing or non-.lvl path is ignored silently, leaving the item
+ * disabled. */
+function quickpathof(argv)
+{
+	const i = argv.indexOf('--quick-load');
+	const p = i >= 0 ? argv[i + 1] : null;
+	return p && /\.lvl$/i.test(p) && fs.existsSync(p) ? p : null;
+}
+
+let quickpath = null;
 
 /* Can fire before whenReady() - the classic bug in this area - which is
  * exactly why openpath() queues rather than assumes `win` exists yet. */
@@ -252,7 +270,7 @@ function addrecent(p)
 	app.addRecentDocument(p);
 	saverecent([p, ...loadrecent().filter(x => x !== p)].slice(0, 10));
 	if (win)
-		menu.set(win, menustate, loadrecent(), clearrecent);
+		menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
 	setdockmenu();
 }
 
@@ -261,7 +279,7 @@ function clearrecent()
 	app.clearRecentDocuments();
 	saverecent([]);
 	if (win)
-		menu.set(win, menustate, [], clearrecent);
+		menu.set(win, menustate, [], clearrecent, quickpath);
 	setdockmenu();
 }
 
@@ -432,7 +450,7 @@ function createwin()
 	win.webContents.on('unresponsive', () =>
 		deadrenderer('The window is not responding.'));
 	win.on('closed', () => { win = null; clearTimeout(showtimer); ipcMain.removeListener('ui:ready', onready); });
-	menu.set(win, menustate, loadrecent(), clearrecent);
+	menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
 }
 
 /* NAT-08: a losing second instance already called app.quit() above; not
@@ -459,6 +477,7 @@ if (singleinstance)
 		const p = argvpath(process.argv);
 		if (p)
 			pendingopen = p;
+		quickpath = quickpathof(process.argv);
 		setdockmenu();
 		/* NAT-17: the one JumpList entry that is not already automatic -
 		 * recent documents populate their own category for free, once
@@ -965,7 +984,7 @@ ipcMain.on('doc:name', (e, name) => { doc.name = name || null; retitle(); });
 ipcMain.on('menu:state', (e, state) => {
 	menustate = state;
 	if (win)
-		menu.set(win, menustate, loadrecent(), clearrecent);
+		menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
 });
 
 ipcMain.on('forceclose', () => {

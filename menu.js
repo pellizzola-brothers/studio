@@ -28,7 +28,7 @@ const L = chrome.oscase;
  * renderer can currently do. `recent` is main's own persisted path list
  * (NAT-06) - existence-filtered by loadrecent() before it ever reaches here,
  * so nothing further needs checking at build time. `onclear` empties it. */
-function template(win, state, recent, onclear)
+function template(win, state, recent, onclear, quick)
 {
 	const send = name => () => win.webContents.send('cmd', name);
 	const onlevel = state.tab === 'level';
@@ -52,6 +52,13 @@ function template(win, state, recent, onclear)
 			{label: L('New Level'), accelerator: 'CmdOrCtrl+N', click: send('new')},
 			{label: L('Open…'), accelerator: 'CmdOrCtrl+O', click: send('open')},
 			openrecent,
+			{type: 'separator'},
+			/* --quick-load (main.js): the one level ALT+L reopens. Same
+			 * open-recent route as the list above, with `quiet` set so the
+			 * "opened …" status line is skipped. Disabled, so its accelerator
+			 * is inert, when no such path was given at launch. */
+			{label: L('Quick Load'), accelerator: 'Alt+L', enabled: !!quick,
+				click: () => win.webContents.send('open-recent', quick, true)},
 			{type: 'separator'},
 			{label: L('Save'), accelerator: 'CmdOrCtrl+S', click: send('save')},
 			{label: L('Save As…'), accelerator: 'CmdOrCtrl+Shift+S', click: send('saveas')},
@@ -193,9 +200,9 @@ function template(win, state, recent, onclear)
 
 /* Cheaper and far simpler than mutating items in place, and state changes
  * (tab switch, undo depth) are infrequent. */
-function set(win, state, recent, onclear)
+function set(win, state, recent, onclear, quick)
 {
-	Menu.setApplicationMenu(Menu.buildFromTemplate(template(win, state, recent || [], onclear)));
+	Menu.setApplicationMenu(Menu.buildFromTemplate(template(win, state, recent || [], onclear, quick || null)));
 }
 
 module.exports = {set};
