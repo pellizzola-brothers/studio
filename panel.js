@@ -411,6 +411,9 @@ function entityview(p, e)
 	 * reads "entity", unchanged. */
 	const title = ITEMS.some(v => v.id === e.def) ? 'item' : 'entity';
 
+	/* The animations belong to the definition, so an entity shows its
+	 * definition's, the way it already shows the script. */
+	const dd = defs.find(v => v.id === e.def);
 	p.innerHTML =
 		'<h4>' + title + '</h4>' +
 		'<label>definition<select id="p_def">' + known.map(id =>
@@ -432,6 +435,7 @@ function entityview(p, e)
 			'<option' + (v === script(e.def) ? ' selected' : '') + '>' + esc(v) +
 			'</option>').join('') + '</select>' +
 		'<div class="hint">' + shared(e.def) + '</div>' +
+		(dd && dd.sheet === 'custom' ? animview(dd) : '') +
 		'<button class="act" id="p_del">remove entity</button>';
 
 	$('p_def').onchange = ev => Undo.act(() => {
@@ -469,6 +473,8 @@ function entityview(p, e)
 			}, 'move entity');
 		};
 	$('p_script').onchange = ev => Panel.assign(e.def, ev.target.value);
+	if (dd && dd.sheet === 'custom')
+		animbind(dd);
 	$('p_esize').onchange = ev => {
 		/* A size is whole cells: it snaps to SPRITEPX, and a size that would
 		 * cover another entity is refused, like a move onto one. */
@@ -693,8 +699,13 @@ function framefrom(blob)
  * editor itself while Panel.draft is for this definition. */
 function animview(d)
 {
-	if (!Panel.draft || Panel.draft.id !== d.id)
-		return '<h4>animations</h4><button class="act" id="p_anim_open">edit animations…</button>';
+	if (!Panel.draft || Panel.draft.id !== d.id) {
+		const names = Object.keys(d.animations || {});
+		const list = names.length ? names.map(n => esc(n) + ' · ' + d.animations[n].frames +
+			(d.animations[n].frames === 1 ? ' frame' : ' frames')).join('<br>') : 'no animations yet';
+		return '<h4>animations</h4><div class="hint">' + list + '</div>' +
+			'<button class="act" id="p_anim_open">edit animations…</button>';
+	}
 	return '<h4>animations</h4><div id="p_anim">' + Panel.draft.anims.map((a, i) =>
 		'<div class="anim">' +
 			'<label>name<input data-name="' + i + '" value="' + esc(a.name) + '"></label>' +
