@@ -232,7 +232,9 @@ async function checksheets()
 		const want = ENTS.concat(ITEMS).filter(e => e.sheet === kind);
 		const rows = sheetrows(im);
 		const named = Math.max(...want.map(e => e.row)) + 1;
-		if (rows.length !== named)
+		/* Rows past the last one named are fine: textures/convert.py also packs
+		 * art the catalog does not place (characters/plant), at the end. */
+		if (rows.length < named)
 			out.push(SHEETFILES[kind] + ' has ' + rows.length + ' rows, catalog.js names ' + named);
 		for (const e of want)
 			if (!rows[e.row] || rows[e.row].h > e.frame)

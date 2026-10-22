@@ -42,6 +42,8 @@ preload.js    contextBridge surface — the renderer's entire view outward.
 lvl.js        .lvl read/write plus the level.json validator (main process).
 util.js       $() and esc() - loaded first so every other renderer script's
               dependency on them is explicit, not implicit in load order.
+builtin_animations.js  The built-in animations' frame offsets (a header: the game
+              must agree with it). Loaded before catalog.js.
 catalog.js    Block ids, entity definitions, backgrounds, texture loading.
               Shared: the renderer loads it as a script, lvl.js requires it.
 tokens.js     Reads style.css's :root design tokens into a plain object, for
@@ -131,11 +133,16 @@ level.lvl
   run across the row. The inspector refuses a frame larger than sheet.png. On `"custom"`, sprite `(frame, row)`
   sits at `(frame * frame, row * frame)`; the studio's `stitch()` guarantees it
   by starting each imported row at a multiple of its own size, so one
-  `sheet.png` mixes sizes. The built-in sheets are a padded atlas instead
-  (1px around every cell, rows of unequal height): `row` there is the n-th
-  band of non-transparent pixel rows, and the game must know each row's
-  offset the way it knows block ids. **The game and website must learn all of
-  this.** Levels without the three fields are filled in on open by
+  `sheet.png` mixes sizes. The built-in sheets (`textures/sheets/`) are laid out
+  by `textures/convert.py` instead: each folder is a row, its frames are the
+  PNGs in it in walk order (a folder's own files, then its subfolders in
+  alphanumeric order, so animations come after the regular sprites), packed
+  left to right with no padding, and each row starts where the previous one
+  ends. A row's frame `i` is therefore at `x = i * frame`, and its `row` is the
+  folder's index in that order (`ENTS`/`ITEMS` in `catalog.js`). The frame
+  offsets of the built-in animations live in `builtin_animations.js`, and
+  `App.usedef()` gives a new built-in definition its animations from there.
+  **The game and website must learn all of this.** Levels without the three fields are filled in on open by
   `sprites()` in `lvl.js`.
 - `pos` is `[col, row]` in block cells on disk: `[0, 0]` is the first block of
   the first row. In memory it stays `[x, y]` in world pixels (`B` per cell);

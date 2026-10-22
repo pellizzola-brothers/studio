@@ -510,7 +510,8 @@ App.usedef = function (id)
 		return;
 
 	const c = entdefs.get(id);
-	defs.push({id: id, script: c ? c.script : id + '_ai', ...spriteof(id)});
+	const anims = BUILTIN_ANIMATIONS[id];
+	defs.push({id: id, script: c ? c.script : id + '_ai', ...spriteof(id), ...(anims && {animations: anims})});
 };
 
 /* App.usedef()'s own counterpart: a built-in definition exists only because
