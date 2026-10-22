@@ -41,9 +41,9 @@ const ENDTILE = 3;	/* the unique goal block; review() in lvl.js and app.js count
 /* Interactives are entities, not tiles: they are dragged into place and carry a
  * script like any other entity.  The palette keeps them in their own group. */
 const ITEMS = [
-	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza.png',      sheet: 'builtin', row: 7, frame: 32},
-	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin.png',       sheet: 'builtin', row: 5, frame: 32},
-	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink.png', sheet: 'builtin', row: 6, frame: 32}
+	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza/00.png',      sheet: 'builtin', row: 7, frame: 32},
+	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin/00.png',       sheet: 'builtin', row: 5, frame: 32},
+	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink/00.png', sheet: 'builtin', row: 6, frame: 32}
 ];
 
 /* They were tile ids 43-46 once.  Levels written back then are converted on

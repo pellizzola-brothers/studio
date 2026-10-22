@@ -144,7 +144,8 @@ level.lvl
   folder's index in that order (`ENTS`/`ITEMS` in `catalog.js`). The frame
   offsets of the built-in animations live in `builtin_animations.js`, which
   `npm run map_animations` generates from those folders (each animation named
-  after its folder), and `App.usedef()` gives a new built-in definition its
+  after its folder; every built-in is `idle`, its 00 sprite, and a folder with
+  subfolders adds one animation per subfolder), and `App.usedef()` gives a new built-in definition its
   animations from there.
   **The game and website must learn all of this.** Levels without the three fields are filled in on open by
   `sprites()` in `lvl.js`.
