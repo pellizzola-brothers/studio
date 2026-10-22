@@ -508,11 +508,15 @@ function formatlevel(j)
 	const ents = j.level.entities;
 	const posmarks = ents.map((_, i) => '@@ENTPOS' + i + '@@');
 	const sizemarks = ents.map((_, i) => '@@ENTSIZE' + i + '@@');
+	const defs = j.level.entity_definitions || {};
+	const defids = Object.keys(defs);
+	const framemarks = defids.map((_, i) => '@@DEFFRAME' + i + '@@');
 	const shim = {
 		...j,
 		level: {
 			...j.level,
 			scenes: Object.fromEntries(keys.map((k, i) => [k, rowmarks[i]])),
+			entity_definitions: Object.fromEntries(defids.map((id, i) => [id, {...defs[id], frame: framemarks[i]}])),
 			entities: ents.map((e, i) => ({...e, pos: posmarks[i], ...(e.size && {size: sizemarks[i]})}))
 		}
 	};
@@ -528,6 +532,9 @@ function formatlevel(j)
 		s = s.replace('"' + posmarks[i] + '"', '[' + e.pos.join(', ') + ']');
 		if (e.size)
 			s = s.replace('"' + sizemarks[i] + '"', '[' + e.size.join(', ') + ']');
+	});
+	defids.forEach((id, i) => {
+		s = s.replace('"' + framemarks[i] + '"', '[' + defs[id].frame.join(', ') + ']');
 	});
 	return s;
 }
