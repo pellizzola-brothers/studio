@@ -10,6 +10,7 @@
 		"start": "electron .",
 		"lint": "eslint .",
 		"check": "node tools/check.js",
+		"map_animations": "node tools/map_animations.js",
 		"dist": "electron-builder"
 	},
 	"dependencies": {

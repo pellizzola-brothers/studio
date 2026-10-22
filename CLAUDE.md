@@ -21,6 +21,8 @@ npm install     # also fetches the Electron binary on first run
 npm start       # launch
 npm run lint    # eslint . - tabs, 'use strict', no dead vars
 npm run check   # tools/check.js - collision grep, .lvl round trip
+npm run map_animations  # tools/map_animations.js - regenerate builtin_animations.js
+                        #   from textures/ (add -- --check to verify, writing nothing)
 npm run dist    # electron-builder - packaged, unsigned artefacts in dist/
 ```
 
@@ -140,8 +142,10 @@ level.lvl
   left to right with no padding, and each row starts where the previous one
   ends. A row's frame `i` is therefore at `x = i * frame`, and its `row` is the
   folder's index in that order (`ENTS`/`ITEMS` in `catalog.js`). The frame
-  offsets of the built-in animations live in `builtin_animations.js`, and
-  `App.usedef()` gives a new built-in definition its animations from there.
+  offsets of the built-in animations live in `builtin_animations.js`, which
+  `npm run map_animations` generates from those folders (each animation named
+  after its folder), and `App.usedef()` gives a new built-in definition its
+  animations from there.
   **The game and website must learn all of this.** Levels without the three fields are filled in on open by
   `sprites()` in `lvl.js`.
 - `pos` is `[col, row]` in block cells on disk: `[0, 0]` is the first block of
