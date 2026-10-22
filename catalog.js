@@ -41,9 +41,9 @@ const ENDTILE = 3;	/* the unique goal block; review() in lvl.js and app.js count
 /* Interactives are entities, not tiles: they are dragged into place and carry a
  * script like any other entity.  The palette keeps them in their own group. */
 const ITEMS = [
-	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza.png',      sheet: 'builtin', row: 7, size: 32},
-	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin.png',       sheet: 'builtin', row: 5, size: 32},
-	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink.png', sheet: 'builtin', row: 6, size: 32}
+	{id: 'pizza', script: 'pizza_item', file: 'interactives/pizza.png',      sheet: 'builtin', row: 7, frame: 32},
+	{id: 'coin',  script: 'coin_item',  file: 'interactives/coin.png',       sheet: 'builtin', row: 5, frame: 32},
+	{id: 'soda',  script: 'soda_item',  file: 'interactives/energy_drink.png', sheet: 'builtin', row: 6, frame: 32}
 ];
 
 /* They were tile ids 43-46 once.  Levels written back then are converted on
@@ -55,10 +55,12 @@ const ITEMTILE = {43: 'pizza', 44: 'coin', 45: 'soda'};
  * against its own script table.  Custom definitions instead carry a path into
  * the level's own scripts/ directory. */
 const PLAYER_DEF = 'player';	/* singleton: at most one entity may ever use it */
+const SPRITEPX = 32;		/* the edge a block or entity sprite is authored at: drawn at B, or at its size / SPRITEPX of B */
+const ENTSIZE = 32;		/* the edge, in sprite pixels, of a newly placed entity */
 
 /* Where each built-in sprite sits in the sheets the game reads.  `row` is
  * the n-th run of non-transparent pixel rows in textures/sheets/entities.png
- * (top to bottom; sheetrows() below finds them), or 0 in player.png; `size`
+ * (top to bottom; sheetrows() below finds them), or 0 in player.png; `frame`
  * is the edge of that row's cell, the largest sprite in it.  Which row is
  * which entity is a contract, like a block id and its column in the block
  * sheet - pixels cannot say it - so checksheets() only *verifies* the table
@@ -69,12 +71,12 @@ const ENTS = [
 	 * (textures/ui/main_menu.png's own labelled callout).  The ids and scripts
 	 * are the game's and predate the renames (erick was abu, tux pinguim), so
 	 * only the files moved. */
-	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizzola/00.png', sheet: 'player',  row: 0, size: 32},
-	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png', sheet: 'builtin', row: 1, size: 32},
-	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png',      sheet: 'builtin', row: 2, size: 64},
-	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png',     sheet: 'builtin', row: 3, size: 32},
-	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/tux/00.png',        sheet: 'builtin', row: 4, size: 32},
-	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet/00.png',     sheet: 'builtin', row: 0, size: 32}
+	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizzola/00.png', sheet: 'player',  row: 0, frame: 32},
+	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png', sheet: 'builtin', row: 1, frame: 32},
+	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png',      sheet: 'builtin', row: 2, frame: 64},
+	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png',     sheet: 'builtin', row: 3, frame: 32},
+	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/tux/00.png',        sheet: 'builtin', row: 4, frame: 32},
+	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet/00.png',     sheet: 'builtin', row: 0, frame: 32}
 ];
 
 /* The three values a definition's `sheet` may take: the game's own entity
@@ -104,12 +106,12 @@ const entdefs = new Map();	/* definition id -> catalog entry */
 for (const e of ENTS.concat(ITEMS))
 	entdefs.set(e.id, e);
 
-/* The {sheet, row, size} a built-in definition is written with; anything
+/* The {sheet, row, frame} a built-in definition is written with; anything
  * the catalog does not know gets BLANKDEF's, so no field is ever empty. */
 function spriteof(id)
 {
 	const c = entdefs.get(id) || entdefs.get(BLANKDEF);
-	return {sheet: c.sheet, row: c.row, size: c.size};
+	return {sheet: c.sheet, row: c.row, frame: c.frame};
 }
 
 /* Width and height of a PNG from its IHDR chunk, or null if `b` is not one.
@@ -212,7 +214,7 @@ function sheetrows(im)
 }
 
 /* Reads each built-in sheet and checks the rows ENTS/ITEMS claim against it:
- * as many rows as the table names, each no taller than its `size`.  Resolves
+ * as many rows as the table names, each no taller than its `frame`.  Resolves
  * to a list of problems, empty when the table and the sheets agree. */
 async function checksheets()
 {
@@ -233,8 +235,8 @@ async function checksheets()
 		if (rows.length !== named)
 			out.push(SHEETFILES[kind] + ' has ' + rows.length + ' rows, catalog.js names ' + named);
 		for (const e of want)
-			if (!rows[e.row] || rows[e.row].h > e.size)
-				out.push(e.id + ': row ' + e.row + ' of ' + SHEETFILES[kind] + ' does not fit ' + e.size + 'px');
+			if (!rows[e.row] || rows[e.row].h > e.frame)
+				out.push(e.id + ': row ' + e.row + ' of ' + SHEETFILES[kind] + ' does not fit ' + e.frame + 'px');
 	}
 	return out;
 }
@@ -242,5 +244,5 @@ async function checksheets()
 /* lvl.js pulls the tables in from the main process; the renderer loads this as
  * a plain script and picks the same names up as globals. */
 if (typeof module !== 'undefined' && module.exports)
-	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, ENDTILE, PLAYER_DEF,
+	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, ENDTILE, PLAYER_DEF, ENTSIZE, SPRITEPX,
 		SHEETKINDS, spriteof, pngsize};

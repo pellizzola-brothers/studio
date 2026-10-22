@@ -66,8 +66,14 @@ function validate(j)
 			e.push('entity_definitions[' + n + '].sheet must be one of ' + cat.SHEETKINDS.join(', '));
 		if (!Number.isInteger(d.row) || d.row < 0)
 			e.push('entity_definitions[' + n + '].row must be a non-negative integer');
-		if (!Number.isInteger(d.size) || d.size < 1)
-			e.push('entity_definitions[' + n + '].size must be a positive integer');
+		if (!Number.isInteger(d.frame) || d.frame < 1)
+			e.push('entity_definitions[' + n + '].frame must be a positive integer');
+		if (d.animations !== undefined && (!d.animations || typeof d.animations !== 'object' || Array.isArray(d.animations)))
+			e.push('entity_definitions[' + n + '].animations must be an object keyed by name');
+		else if (d.animations !== undefined)
+			for (const [name, a] of Object.entries(d.animations))
+				if (!a || !Number.isInteger(a.start) || a.start < 0 || !Number.isInteger(a.frames) || a.frames < 1)
+					e.push('entity_definitions[' + n + '].animations.' + name + ' needs start of 0 or more and frames of 1 or more');
 		if (defs.has(d.id))
 			e.push('duplicate entity definition "' + d.id + '"');
 		defs.add(d.id);
@@ -84,6 +90,8 @@ function validate(j)
 			e.push('entities[' + n + '] references unknown definition "' + s.def + '"');
 		if (!Array.isArray(s.pos) || s.pos.length !== 2 || !s.pos.every(v => isnum(v) && v % cat.B === 0))
 			e.push('entities[' + n + '].pos must be [x, y] in world pixels, on the block grid');
+		if (!Number.isInteger(s.size) || s.size < cat.SPRITEPX || s.size % cat.SPRITEPX)
+			e.push('entities[' + n + '].size must be a positive multiple of ' + cat.SPRITEPX);
 	});
 
 	if (!Array.isArray(l.backgrounds))
@@ -145,8 +153,13 @@ function review(doc)
 			continue;
 		if (!sz)
 			w.push('definition "' + d.id + '" uses the custom sheet, but the level has none');
-		else if ((d.row + 1) * d.size > sz.h)
+		else if ((d.row + 1) * d.frame > sz.h)
 			w.push('definition "' + d.id + '" row ' + d.row + ' lies outside sheet.png');
+		else
+			/* A row holds width / frame frames: derived here, never stored. */
+			for (const [name, a] of Object.entries(d.animations || {}))
+				if (a.start + a.frames > Math.floor(sz.w / d.frame))
+					w.push('animation "' + name + '" of "' + d.id + '" runs past the end of its row');
 	}
 	if (sz && !l.entity_definitions.some(d => d.sheet === 'custom'))
 		w.push('sheet.png is not used by any definition');
@@ -161,11 +174,19 @@ function review(doc)
 		const [x, y] = s.pos;
 		if (x < 0 || y < 0 || x >= cat.W * cat.B || y >= h * cat.B)
 			w.push('entities[' + n + '] ("' + s.def + '") is outside the level bounds');
-		const k = Math.floor(x / cat.B) + ',' + Math.floor(y / cat.B);
-		if (cells.has(k))
-			w.push('entities[' + n + '] ("' + s.def + '") shares a cell with entities[' + cells.get(k) + ']');
-		else
-			cells.set(k, n);
+		/* An entity covers size / SPRITEPX cells on each side, from its pos's cell. */
+		const c0 = Math.floor(x / cat.B), r0 = Math.floor(y / cat.B), span = s.size / cat.SPRITEPX;
+		if (c0 + span > cat.W || r0 + span > h)
+			w.push('entities[' + n + '] ("' + s.def + '") covers cells past the level bounds');
+		let other = -1;
+		for (let r = r0; r < r0 + span; r++)
+			for (let c = c0; c < c0 + span; c++) {
+				if (cells.has(c + ',' + r) && other < 0)
+					other = cells.get(c + ',' + r);
+				cells.set(c + ',' + r, n);
+			}
+		if (other >= 0)
+			w.push('entities[' + n + '] ("' + s.def + '") shares a cell with entities[' + other + ']');
 	});
 	for (const d of l.entity_definitions)
 		if (!used.has(d.id))
@@ -220,51 +241,63 @@ function migrate(j)
 function sprites(l)
 {
 	for (const d of l.entity_definitions)
-		if (d && typeof d === 'object' && d.sheet === undefined && d.row === undefined && d.size === undefined)
+		if (d && typeof d === 'object' && d.sheet === undefined && d.row === undefined && d.frame === undefined)
 			Object.assign(d, cat.spriteof(d.id));
 }
 
-/* On disk a size belongs to each placed entity, not its definition. In memory
- * the definition keeps it (the palette and the grid draw from it), so only
- * these two functions move it. A definition no entity uses has nowhere to
- * keep its size on disk, so write() leaves it out.
- * On disk entity_definitions is an object keyed by id, each {script, sprite:
- * {sheet, row}}; memory keeps the array of flat {id, script, sheet, row, size}
- * the renderer reads. defsin() (below) is the reverse of that half.
+/* A size belongs to each placed entity, on disk and in memory alike: it is how
+ * big that one entity is drawn. A definition's frame is different - the edge
+ * of one sprite cell in its sheet row - and is the only size a definition has.
+ * On disk entity_definitions is an object keyed by id, each {script, sheet,
+ * row, frame: [n, n], animations}; memory keeps the array of flat {id, script,
+ * sheet, row, frame, animations} the renderer reads. A definition no entity
+ * uses has nowhere to keep its animations or frame on disk, so write() leaves
+ * it out. Entities write size as a [n, n] pair, the way they write pos.
  * A position is written in block cells, not world pixels: [0, 0] is the first
  * block of the first row. Memory keeps pixels, so posin() (below) is the
  * reverse. */
 function sizesout(l)
 {
-	const sizes = new Map(l.entity_definitions.map(d => [d.id, d.size]));
 	const used = new Set(l.entities.map(e => e.def));
 	return {
 		entity_definitions: Object.fromEntries(l.entity_definitions
 			.filter(d => used.has(d.id))
-			.map(d => [d.id, {script: d.script, sprite: {sheet: d.sheet, row: d.row}}])),
+			.map(d => [d.id, {script: d.script, sheet: d.sheet, row: d.row,
+				frame: [d.frame, d.frame], ...(d.animations && {animations: d.animations})}])),
 		entities: l.entities.map(e => ({
 			...e,
 			pos: e.pos.map(v => v / cat.B),
-			size: [sizes.get(e.def), sizes.get(e.def)]
+			size: [e.size, e.size]
 		})),
 	};
 }
 
 /* The reverse of sizesout()'s definition half. An array is a level written
  * before the object form, already in memory's shape, so it passes through.
- * Otherwise each key becomes an id, and a missing sprite stays undefined for
- * sprites() to fill from the catalog, as it does for any older definition. */
+ * Otherwise each key becomes an id. One written before frame existed keeps
+ * its sheet and row under `sprite` and no frame: sizesin() gives it its
+ * frame from its entities. A missing sprite stays undefined for sprites()
+ * to fill from the catalog, as it does for any older definition.
+ * Returns the frame errors, which read() reports with the rest. */
 function defsin(l)
 {
+	const errs = [];
 	const d = l.entity_definitions;
 	if (!d || typeof d !== 'object' || Array.isArray(d))
-		return;
-	l.entity_definitions = Object.entries(d).map(([id, v]) => ({
-		id,
-		script: v && v.script,
-		sheet: v && v.sprite && v.sprite.sheet,
-		row: v && v.sprite && v.sprite.row
-	}));
+		return errs;
+	l.entity_definitions = Object.entries(d).map(([id, v]) => {
+		const s = (v && v.sprite) || v || {};
+		const f = v && v.frame;
+		if (f !== undefined && (!Array.isArray(f) || f.length !== 2 || !Number.isInteger(f[0]) || f[0] < 1 || f[1] !== f[0]))
+			errs.push('entity_definitions.' + id + '.frame must be [n, n] with n a positive integer');
+		const def = {id, script: v && v.script, sheet: s.sheet, row: s.row};
+		if (f)
+			def.frame = f[0];
+		if (v && v.animations)
+			def.animations = v.animations;
+		return def;
+	});
+	return errs;
 }
 
 /* The reverse of sizesout()'s position half: a disk pos is [col, row] in
@@ -289,10 +322,11 @@ function posin(l)
 	return errs;
 }
 
-/* The reverse of sizesout(): each definition takes its size from the entities
- * that name it, and those entities give it back. Every entity of one
- * definition must agree, since memory holds only one size per definition.
- * ponytail: memory and the renderer are square-only (one edge per cell), so
+/* The reverse of sizesout()'s entity half: each entity's [n, n] becomes its
+ * size. An entity written without one (items() adds them) takes cat.ENTSIZE.
+ * A definition written without a frame (before frame existed) takes its frame
+ * from its first entity, since the size was all it ever had then.
+ * ponytail: memory and the renderer are square-only (one edge per entity), so
  * a [w, h] with w !== h is refused here; lift that when grid.js draws
  * non-square cells. */
 function sizesin(l)
@@ -300,21 +334,21 @@ function sizesin(l)
 	const defs = new Map(l.entity_definitions.filter(d => d).map(d => [d.id, d]));
 	const errs = [];
 	l.entities.forEach((s, n) => {
-		if (!s || s.size === undefined)
+		if (!s)
 			return;
-		const d = defs.get(s.def);
-		if (!d)
-			return;			/* validate() reports the unknown definition */
-		const sz = s.size;
-		if (!Array.isArray(sz) || sz.length !== 2 || !Number.isInteger(sz[0]) || sz[0] < 1 || sz[1] !== sz[0]) {
-			errs.push('entities[' + n + '].size must be [n, n] with n a positive integer');
+		if (s.size === undefined) {
+			s.size = cat.ENTSIZE;
 			return;
 		}
-		if (d.size === undefined)
-			d.size = sz[0];
-		else if (d.size !== sz[0])
-			errs.push('entities[' + n + '] size ' + sz[0] + ' disagrees with definition "' + d.id + '" size ' + d.size);
-		delete s.size;
+		const d = defs.get(s.def);
+		const sz = s.size;
+		if (!Array.isArray(sz) || sz.length !== 2 || !Number.isInteger(sz[0]) || sz[0] < cat.SPRITEPX || sz[0] % cat.SPRITEPX || sz[1] !== sz[0]) {
+			errs.push('entities[' + n + '].size must be [n, n] with n a positive multiple of ' + cat.SPRITEPX);
+			return;
+		}
+		s.size = sz[0];
+		if (d && d.frame === undefined)
+			d.frame = sz[0];
 	});
 	return errs;
 }
@@ -413,11 +447,10 @@ function read(p)
 	const lv = doc.json.level;
 	if (lv && lv.scenes && typeof lv.scenes === 'object' && !Array.isArray(lv.scenes) && Object.keys(lv.scenes).length)
 		unscenes(lv);
-	if (lv)
-		defsin(lv);
+	const deferrs = lv ? defsin(lv) : [];
 	const poserrs = lv ? posin(lv) : [];
 	migrate(doc.json);
-	const errs = poserrs.concat(lv ? sizesin(lv) : [], validate(doc.json));
+	const errs = deferrs.concat(poserrs, lv ? sizesin(lv) : [], validate(doc.json));
 	if (errs.length)
 		fail('invalid level.json in ' + p + ':', errs);
 	return doc;

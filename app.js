@@ -379,8 +379,13 @@ App.review = function ()
 			continue;
 		if (!sz)
 			w.push('definition "' + d.id + '" uses the custom sheet, but the level has none');
-		else if ((d.row + 1) * d.size > sz.h)
+		else if ((d.row + 1) * d.frame > sz.h)
 			w.push('definition "' + d.id + '" row ' + d.row + ' lies outside sheet.png');
+		else
+			/* A row holds width / frame frames: derived here, never stored. */
+			for (const [name, a] of Object.entries(d.animations || {}))
+				if (a.start + a.frames > Math.floor(sz.w / d.frame))
+					w.push('animation "' + name + '" of "' + d.id + '" runs past the end of its row');
 	}
 	if (sz && !l.entity_definitions.some(d => d.sheet === 'custom'))
 		w.push('sheet.png is not used by any definition');
@@ -394,11 +399,19 @@ App.review = function ()
 		const [x, y] = s.pos;
 		if (x < 0 || y < 0 || x >= W * B || y >= Grid.h * B)
 			w.push('entities[' + n + '] ("' + s.def + '") is outside the level bounds');
-		const k = Math.floor(x / B) + ',' + Math.floor(y / B);
-		if (cells.has(k))
-			w.push('entities[' + n + '] ("' + s.def + '") shares a cell with entities[' + cells.get(k) + ']');
-		else
-			cells.set(k, n);
+		/* An entity covers size / SPRITEPX cells on each side, from its pos's cell. */
+		const c0 = Math.floor(x / B), r0 = Math.floor(y / B), span = s.size / SPRITEPX;
+		if (c0 + span > W || r0 + span > Grid.h)
+			w.push('entities[' + n + '] ("' + s.def + '") covers cells past the level bounds');
+		let other = -1;
+		for (let r = r0; r < r0 + span; r++)
+			for (let c = c0; c < c0 + span; c++) {
+				if (cells.has(c + ',' + r) && other < 0)
+					other = cells.get(c + ',' + r);
+				cells.set(c + ',' + r, n);
+			}
+		if (other >= 0)
+			w.push('entities[' + n + '] ("' + s.def + '") shares a cell with entities[' + other + ']');
 	});
 	for (const d of l.entity_definitions)
 		if (!used.has(d.id))
@@ -1073,7 +1086,7 @@ async function stitch(files)
 		const bm = await createImageBitmap(new Blob([f.data], {type: 'image/png'}));
 		const y = Math.ceil(h / bm.height) * bm.height;
 		parts.push({bm, y});
-		added.push({name: f.name, row: y / bm.height, size: bm.height,
+		added.push({name: f.name, row: y / bm.height, frame: bm.height,
 			frames: Math.max(1, Math.floor(bm.width / bm.height))});
 		w = Math.max(w, bm.width);
 		h = y + bm.height;
@@ -1109,7 +1122,7 @@ App.importsheet = async function (def)
 		App.doc.sheet = out.bytes;
 		const d = def && defs.find(v => v.id === def);
 		if (d)
-			Object.assign(d, {sheet: 'custom', row: out.added[0].row, size: out.added[0].size});
+			Object.assign(d, {sheet: 'custom', row: out.added[0].row, frame: out.added[0].frame});
 		App.touch();
 	}, 'import sprites');
 	App.lastsprite = out.added[out.added.length - 1];
@@ -1117,7 +1130,7 @@ App.importsheet = async function (def)
 	Panel.inspect();
 	Grid.redraw();
 	App.say('imported ' + out.added.map(a => a.name + ' as row ' + a.row + ' · ' +
-		a.size + 'px · ' + a.frames + (a.frames === 1 ? ' frame' : ' frames')).join(', '));
+		a.frame + 'px · ' + a.frames + (a.frames === 1 ? ' frame' : ' frames')).join(', '));
 };
 
 /* NAT-09: a .mid/.midi file dropped onto #midis. */

@@ -836,6 +836,12 @@ body.text #right { display: none; }
 .cell.air { background: repeating-conic-gradient(var(--checker-a) 0 25%, var(--checker-b) 0 50%) 0/12px 12px; }
 .cell.add { display: grid; place-items: center; color: var(--dim); }
 
+/* animation editor: one thumbnail per frame, pixel art kept crisp */
+.frames { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.frame { padding: 0; border: var(--border) solid transparent; background: none; cursor: pointer; }
+.frame:hover { border-color: var(--dim); }
+.frame img { display: block; width: var(--row); height: var(--row); image-rendering: pixelated; }
+
 /* inspector */
 /* GEO-06: as tall as its own fields by default - a floor of three rows and a
    70% ceiling so an unusually short view (the definition view's three

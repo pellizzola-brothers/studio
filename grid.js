@@ -42,7 +42,7 @@ const ZMIN = 0.03, ZMAX = 3;
 /* GEO-11: the rest of this file's unnamed constants, named and explained once
  * rather than left as bare numbers at each site. */
 const FITPAD = B;	/* Grid.fitH()/Grid.fitW(): one block of margin around the level */
-const SCENEZOOM = 0.75;	/* Grid.fit(): the zoom a single scene reads at */
+const SCENEZOOM = 1;	/* Grid.fit(): the zoom a single scene reads at */
 const GRIDMIN = 10;	/* Grid.draw(): stop drawing grid lines once a tile is smaller
 			   than this many device px - below it the lines outweigh
 			   the content */
@@ -118,25 +118,57 @@ function unplaceplayer()
 		es.splice(i, 1);
 }
 
-/* Which entity, if any, owns cell (cx, cy).  Levels hold tens of entities, so
- * a scan beats maintaining a second index that can fall out of sync. */
+/* An entity covers size / SPRITEPX cells on each side, from its pos's cell
+ * down and right: a 32px entity is one cell, a 64px one is 2 x 2. */
+function span(e)
+{
+	return e.size / SPRITEPX;
+}
+
+/* Which entity, if any, covers cell (cx, cy).  Levels hold tens of entities,
+ * so a scan beats maintaining a second index that can fall out of sync. */
 function entat(cx, cy)
 {
 	const es = elist();
-	for (let i = es.length - 1; i >= 0; i--)
-		if (Math.floor(es[i].pos[0] / B) === cx && Math.floor(es[i].pos[1] / B) === cy)
+	for (let i = es.length - 1; i >= 0; i--) {
+		const x = es[i].pos[0] / B, y = es[i].pos[1] / B, n = span(es[i]);
+		if (cx >= x && cx < x + n && cy >= y && cy < y + n)
 			return i;
+	}
 	return -1;
 }
 
-/* One entity, one cell: does (cx, cy) hold an entity other than `self`?
- * Every path that moves an entity - drag, nudge, duplicate, the inspector's
- * x/y - refuses a cell for which this is true; placing a new one is already
- * refused, since a press on an entity grabs it instead. */
-function taken(cx, cy, self)
+/* One entity, one footprint, inside the level: would an entity of `size`
+ * (default: self's own) placed at (cx, cy) cover a cell outside the level, or
+ * one another entity than `self` covers?  Every path that moves an entity -
+ * drag, nudge, duplicate, the inspector's x/y and size - refuses a placement
+ * for which this is true; placing a new one is already refused, since a press
+ * on an entity grabs it instead. */
+function taken(cx, cy, self, size)
 {
-	const i = entat(cx, cy);
-	return i >= 0 && i !== self;
+	const es = elist();
+	const n = (size || (es[self] && es[self].size) || SPRITEPX) / SPRITEPX;
+	if (cx < 0 || cy < 0 || cx + n > W || cy + n > Grid.h)
+		return true;
+	return es.some((o, j) => j !== self && o.pos[0] / B < cx + n && cx < o.pos[0] / B + span(o) &&
+		o.pos[1] / B < cy + n && cy < o.pos[1] / B + span(o));
+}
+
+/* An entity owns every cell it covers, so placing or moving one clears the
+ * blocks under all of them. */
+function clearunder(e)
+{
+	const x0 = e.pos[0] / B, y0 = e.pos[1] / B, n = span(e);
+	for (let y = y0; y < y0 + n; y++)
+		for (let x = x0; x < x0 + n; x++)
+			setblock(x, y, 0);
+}
+
+/* A new entity of definition `id` at `pos`, drawn at ENTSIZE until the
+ * inspector changes it. */
+function newent(id, pos)
+{
+	return {def: id, pos: pos, size: ENTSIZE};
 }
 
 /* An entity always wins the cell it stands on: painting under one leaves air.
@@ -396,7 +428,7 @@ Grid.fitW = function ()
 	fitscene(r.width / (SCENECOLS * B + 2 * FITPAD));
 };
 
-/* SCENEZOOM is fixed rather than computed from the viewport - a single scene reads at 75%
+/* SCENEZOOM is fixed rather than computed from the viewport - a single scene reads at 100%
  * regardless of viewport size, the same way fitH()/fitW() are the two
  * commands that still compute a real fit. Positioned at the scene's own
  * left edge, not fitscene()'s own centring: that centring only reads right
@@ -588,7 +620,7 @@ Grid.draw = function ()
 	for (let i = 0; i < es.length; i++) {
 		const e = es[i];
 		const sx = Math.round(e.pos[0] * z - ox), sy = Math.round(e.pos[1] * z - oy);
-		const s = Math.round(B * z);
+		const s = Math.round(e.size * B / SPRITEPX * z);
 		if (sx > cw || sy > ch || sx + s < 0 || sy + s < 0)
 			continue;
 		blit(g, artof(e.def, App.doc.json.level.entity_definitions), sx, sy, s, s);
@@ -660,7 +692,7 @@ function blit(g, t, x, y, w, h)
 	if (t && t.custom) {
 		const sheet = sheetimage(App.doc.sheet, Grid.redraw);
 		if (ready(sheet))
-			g.drawImage(sheet, 0, t.custom.row * t.custom.size, t.custom.size, t.custom.size, x, y, w, h);
+			g.drawImage(sheet, 0, t.custom.row * t.custom.frame, t.custom.frame, t.custom.frame, x, y, w, h);
 		else if (!App.doc.sheet)
 			hatch(g, x, y, w, h);
 		return;
@@ -856,14 +888,14 @@ Grid.nudge = function (dx, dy, coarse)
 	if (nx === e.pos[0] && ny === e.pos[1])
 		return;
 	if (taken(nx / B, ny / B, Grid.sel)) {
-		App.say('that cell already holds an entity', true);
+		App.say('that cell is taken, or the entity would leave the level', true);
 		return;
 	}
 
 	Undo.act(() => {
 		e.pos[0] = nx;
 		e.pos[1] = ny;
-		setblock(nx / B, ny / B, 0);	/* the block under it gives way */
+		clearunder(e);		/* the blocks under it give way */
 		App.touch();
 	}, 'move entity');
 	App.inspect();
@@ -884,9 +916,9 @@ Grid.duplicate = function ()
 		Math.min(W - 1, Math.floor(e.pos[0] / B) + 1);
 	let pos = null;
 	for (let k = 0; k < W * Grid.h && !pos; k++) {
-		const n = (start + k) % (W * Grid.h);
-		if (entat(n % W, Math.floor(n / W)) < 0)
-			pos = [(n % W) * B, Math.floor(n / W) * B];
+		const n = (start + k) % (W * Grid.h), x = n % W, y = Math.floor(n / W);
+		if (x + span(e) <= W && y + span(e) <= Grid.h && !taken(x, y, -1, e.size))
+			pos = [x * B, y * B];
 	}
 	if (!pos) {
 		App.say('no free cell to duplicate into', true);
@@ -897,9 +929,9 @@ Grid.duplicate = function ()
 		App.usedef(e.def);
 		if (e.def === PLAYER_DEF)
 			unplaceplayer();
-		elist().push({def: e.def, pos: pos});
+		elist().push({def: e.def, pos: pos, size: e.size});
 		Grid.sel = elist().length - 1;
-		setblock(pos[0] / B, pos[1] / B, 0);
+		clearunder(elist()[Grid.sel]);
 		App.touch();
 	}, 'duplicate entity');
 	App.inspect();
@@ -929,9 +961,9 @@ Grid.kpaint = function ()
 			App.usedef(Grid.tool.id);
 			if (Grid.tool.id === PLAYER_DEF)
 				unplaceplayer();
-			elist().push({def: Grid.tool.id, pos: [c.x * B, c.y * B]});
+			elist().push(newent(Grid.tool.id, [c.x * B, c.y * B]));
 			Grid.sel = elist().length - 1;
-			setblock(c.x, c.y, 0);
+			clearunder(elist()[Grid.sel]);
 			App.touch();
 		}, 'place entity');
 	} else
@@ -1018,11 +1050,11 @@ function ondown(ev)
 		App.usedef(Grid.tool.id);
 		if (Grid.tool.id === PLAYER_DEF)
 			unplaceplayer();
-		elist().push({def: Grid.tool.id, pos: [c.x * B, c.y * B]});
+		elist().push(newent(Grid.tool.id, [c.x * B, c.y * B]));
 		Grid.sel = elist().length - 1;
 		Grid.moving = true;
 		Grid.cursor(c);
-		setblock(c.x, c.y, 0);
+		clearunder(elist()[Grid.sel]);
 		App.touch();
 		App.inspect();
 		Grid.redraw();
@@ -1117,7 +1149,7 @@ function onmove(ev)
 			return;			/* it stays on the last free cell */
 		e.pos[0] = c.x * B;
 		e.pos[1] = c.y * B;
-		setblock(c.x, c.y, 0);		/* the block under it gives way */
+		clearunder(e);		/* the blocks under it give way */
 		App.touch();
 		/* PERF-01: write the moved fields in place rather than rebuilding the
 		 * whole inspector on every cell crossed; Panel.update() falls back to

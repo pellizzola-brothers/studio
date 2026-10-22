@@ -57,8 +57,8 @@ async function roundtrip()
 	doc.midi['midi/probe.mid'] = new Uint8Array([1, 2, 3, 4]);
 	/* A 1x1 PNG, and a definition that points into it. */
 	doc.sheet = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64'));
-	doc.json.level.entity_definitions.push({id: 'probe', script: 'scripts/probe.lua', sheet: 'custom', row: 0, size: 1});
-	doc.json.level.entities.push({def: 'probe', pos: [12000, 0]});	/* column 120 (x100), scene 6 */
+	doc.json.level.entity_definitions.push({id: 'probe', script: 'scripts/probe.lua', sheet: 'custom', row: 0, frame: 1});
+	doc.json.level.entities.push({def: 'probe', pos: [12000, 0], size: 32});	/* column 120 (x100), scene 6 */
 
 	/* NAT-19: lvl.write() is async now (done, see "Already completed"). */
 	await lvl.write(tmp, doc);
@@ -69,7 +69,7 @@ async function roundtrip()
 	assert(!('block_data' in wl), 'block_data was written');
 	assert.deepStrictEqual(Object.keys(wl.scenes), ['6', '26'], 'empty scenes were written');
 	assert(files['sheet.png'], 'sheet.png is not at the archive root');
-	assert.deepStrictEqual(wl.entities[0].size, [1, 1], 'entity size is not a [w, h] pair');
+	assert.deepStrictEqual(wl.entities[0].size, [32, 32], 'entity size is not a [w, h] pair');
 	assert.deepStrictEqual(wl.entities[0].pos, [120, 0], 'entity pos is not in block cells');
 	assert.deepStrictEqual(Array.from(back.sheet), Array.from(doc.sheet), 'sheet.png did not round-trip');
 	assert(Object.values(wl.scenes).every(a => a.length === lvl.H * 20), 'scene is not 12x20');

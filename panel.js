@@ -167,8 +167,8 @@ function sliceurl(d)
 	if (!ready(im))
 		return '';
 	const c = document.createElement('canvas');
-	c.width = c.height = d.size;
-	c.getContext('2d').drawImage(im, 0, d.row * d.size, d.size, d.size, 0, 0, d.size, d.size);
+	c.width = c.height = d.frame;
+	c.getContext('2d').drawImage(im, 0, d.row * d.frame, d.frame, d.frame, 0, 0, d.frame, d.frame);
 	return c.toDataURL();
 }
 
@@ -426,6 +426,7 @@ function entityview(p, e)
 		'</div>' +
 		'<label>cell<input id="p_cell" value="' + Math.floor(e.pos[0] / B) + ', ' +
 			Math.floor(e.pos[1] / B) + '" disabled aria-disabled="true"></label>' +
+		'<label>size (px, whole cells)<input id="p_esize" type="number" min="' + SPRITEPX + '" step="' + SPRITEPX + '" value="' + e.size + '"></label>' +
 		'<h4>script</h4>' +
 		'<select id="p_script">' + scripts(e.def).map(v =>
 			'<option' + (v === script(e.def) ? ' selected' : '') + '>' + esc(v) +
@@ -456,7 +457,7 @@ function entityview(p, e)
 			if (v === e.pos[n])
 				return Panel.update(e);
 			if (taken(to[0] / B, to[1] / B, Grid.sel)) {
-				App.say('that cell already holds an entity', true);
+				App.say('that cell is taken, or the entity would leave the level', true);
 				return Panel.update(e);
 			}
 			Undo.act(() => {
@@ -467,6 +468,22 @@ function entityview(p, e)
 			}, 'move entity');
 		};
 	$('p_script').onchange = ev => Panel.assign(e.def, ev.target.value);
+	$('p_esize').onchange = ev => {
+		/* A size is whole cells: it snaps to SPRITEPX, and a size that would
+		 * cover another entity is refused, like a move onto one. */
+		const size = Math.max(1, Math.round(+ev.target.value / SPRITEPX)) * SPRITEPX;
+		if (taken(e.pos[0] / B, e.pos[1] / B, Grid.sel, size)) {
+			App.say('that size would cover another entity or leave the level', true);
+			return Panel.inspect();
+		}
+		Undo.act(() => {
+			e.size = size;
+			clearunder(e);
+			App.touch();
+			Grid.redraw();
+			Panel.inspect();
+		}, 'resize entity');
+	};
 	$('p_del').onclick = () => Undo.act(() => {
 		App.doc.json.level.entities.splice(Grid.sel, 1);
 		prunedef(e.def);
@@ -521,7 +538,7 @@ Panel.assign = function (def, path)
 };
 
 /* The inspector's sprite section for definition `d`: one select over every
- * built-in sprite plus "custom sheet", and row/size fields once the custom
+ * built-in sprite plus "custom sheet", and row/frame fields once the custom
  * sheet is chosen.  A built-in row has no fields - the catalog owns them. */
 function spritefields(d)
 {
@@ -538,7 +555,7 @@ function spritefields(d)
 	if (custom)
 		h += '<div class="row">' +
 			'<label>row<input id="p_row" type="number" min="0" step="1" value="' + d.row + '"></label>' +
-			'<label>size<input id="p_size" type="number" min="1" step="1" value="' + d.size + '"></label>' +
+			'<label>frame<input id="p_frame" type="number" min="1" step="1" value="' + d.frame + '"></label>' +
 			'</div>';
 	return h;
 }
@@ -561,6 +578,7 @@ function defview(p, id)
 			'</option>').join('') + '</select></label>' +
 		spritefields(d) +
 		'<button class="act" id="p_import">import sprite sheet…</button>' +
+		(d.sheet === 'custom' ? animview(d) : '') +
 		'<button class="act" id="p_rm">remove definition</button>';
 
 	$('p_id').onchange = ev => Undo.act(() => {
@@ -602,13 +620,274 @@ function defview(p, id)
 		 * square as tall as the sheet is wide would be a guess, so the
 		 * user is left to type the row. */
 		const last = App.lastsprite;
-		resprite({sheet: 'custom', row: last ? last.row : 0, size: last ? last.size : (pngsize(App.doc.sheet) || {h: 32}).h}, 'change sprite');
+		resprite({sheet: 'custom', row: last ? last.row : 0, frame: last ? last.frame : (pngsize(App.doc.sheet) || {h: 32}).h}, 'change sprite');
 	};
 	if ($('p_row')) {
 		$('p_row').onchange = ev => resprite({row: Math.max(0, Math.round(+ev.target.value) || 0)}, 'change sprite row');
-		$('p_size').onchange = ev => resprite({size: Math.max(1, Math.round(+ev.target.value) || 1)}, 'change sprite size');
+		$('p_frame').onchange = ev => resprite({frame: Math.max(1, Math.round(+ev.target.value) || 1)}, 'change sprite frame');
 	}
+	if (d.sheet === 'custom')
+		animbind(d);
 }
+
+/* The animation editor (below) works on a draft: Panel.draft holds the
+ * definition being edited and its animations, each a name and the single-frame
+ * PNGs it plays, until "apply" rebuilds the definition's row from them or
+ * "cancel" drops them. Frames are {blob, url}: the blob is what apply stitches,
+ * the url is what the inspector shows. Built-in definitions are not offered
+ * it, since they have no row of their own to rebuild. */
+Panel.draft = null;
+
+/* Panel.draft's blob URLs are the only browser resource it holds, so every
+ * path that ends a draft frees them here. */
+Panel.animclose = function ()
+{
+	if (!Panel.draft)
+		return;
+	for (const a of Panel.draft.anims)
+		for (const f of a.frames)
+			URL.revokeObjectURL(f.url);
+	Panel.draft = null;
+};
+
+/* Resolves to the level's sheet.png once it has decoded. A load listener, not
+ * sheetimage()'s redraw callback: whichever caller created the image first owns
+ * that callback, so a second caller would never hear it fire. */
+function sheetloaded()
+{
+	return new Promise(res => {
+		const im = sheetimage(App.doc.sheet, () => {});
+		if (ready(im))
+			res(im);
+		else
+			im.addEventListener('load', () => res(im), {once: true});
+	});
+}
+
+/* Frame `col` of row `row` in a decoded sheet, cut out as a PNG blob. */
+function cutframe(im, row, col, frame)
+{
+	const c = document.createElement('canvas');
+	c.width = c.height = frame;
+	c.getContext('2d').drawImage(im, col * frame, row * frame, frame, frame, 0, 0, frame, frame);
+	return new Promise(res => c.toBlob(res, 'image/png'));
+}
+
+function framefrom(blob)
+{
+	return {blob: blob, url: URL.createObjectURL(blob)};
+}
+
+/* The inspector's animation section: a button to open the editor, or the
+ * editor itself while Panel.draft is for this definition. */
+function animview(d)
+{
+	if (!Panel.draft || Panel.draft.id !== d.id)
+		return '<h4>animations</h4><button class="act" id="p_anim_open">edit animations…</button>';
+	return '<h4>animations</h4><div id="p_anim">' + Panel.draft.anims.map((a, i) =>
+		'<div class="anim">' +
+			'<label>name<input data-name="' + i + '" value="' + esc(a.name) + '"></label>' +
+			'<div class="frames">' + a.frames.map((f, j) =>
+			'<button class="frame" data-rm="' + i + ',' + j + '" aria-label="remove frame ' + (j + 1) + '">' +
+				'<img src="' + f.url + '" alt=""></button>').join('') + '</div>' +
+			'<div class="acts">' +
+				'<button class="act" data-add="' + i + '">add frames…</button>' +
+				'<button class="act" data-rmanim="' + i + '">remove animation</button>' +
+			'</div>' +
+		'</div>').join('') +
+		'<button class="act" id="p_anim_new">new animation</button>' +
+		'<div class="acts">' +
+			'<button class="act" id="p_anim_apply">apply</button>' +
+			'<button class="act" id="p_anim_cancel">cancel</button>' +
+		'</div></div>';
+}
+
+function animbind(d)
+{
+	if ($('p_anim_open')) {
+		$('p_anim_open').onclick = () => Panel.animopen(d.id);
+		return;
+	}
+	$('p_anim').onchange = ev => {
+		if (ev.target.dataset.name !== undefined)
+			Panel.draft.anims[+ev.target.dataset.name].name = ev.target.value;
+	};
+	$('p_anim').onclick = ev => {
+		const t = ev.target.closest('button');
+		if (!t)
+			return;
+		const anims = Panel.draft.anims;
+		if (t.dataset.add !== undefined)
+			return animadd(+t.dataset.add);
+		if (t.dataset.rmanim !== undefined) {
+			anims.splice(+t.dataset.rmanim, 1);
+		} else if (t.dataset.rm !== undefined) {
+			const [i, j] = t.dataset.rm.split(',').map(Number);
+			URL.revokeObjectURL(anims[i].frames[j].url);
+			anims[i].frames.splice(j, 1);
+		}
+		Panel.inspect();
+	};
+	$('p_anim_new').onclick = () => {
+		Panel.draft.anims.push({name: 'animation ' + (Panel.draft.anims.length + 1), frames: []});
+		Panel.inspect();
+	};
+	$('p_anim_apply').onclick = () => Panel.animapply();
+	$('p_anim_cancel').onclick = () => {
+		Panel.animclose();
+		Panel.inspect();
+	};
+}
+
+/* Reads each animation's frames back out of the row the definition points at,
+ * so the draft starts from what is on the sheet. */
+Panel.animopen = async function (id)
+{
+	const d = App.doc.json.level.entity_definitions.find(v => v.id === id);
+	if (!App.doc.sheet) {
+		App.say('import a sprite sheet before adding animations', true);
+		return;
+	}
+	Panel.animclose();
+	const im = await sheetloaded();
+	const anims = [];
+	for (const [name, a] of Object.entries(d.animations || {})) {
+		const frames = [];
+		for (let i = 0; i < a.frames; i++)
+			frames.push(framefrom(await cutframe(im, d.row, a.start + i, d.frame)));
+		anims.push({name: name, frames: frames});
+	}
+	Panel.draft = {id: id, anims: anims};
+	Panel.inspect();
+};
+
+/* "add frames…": the sheet import dialog picks the PNGs.  Each file is one
+ * frame, so each must be exactly the definition's frame square, or none are
+ * added. */
+async function animadd(i)
+{
+	const d = App.doc.json.level.entity_definitions.find(v => v.id === Panel.draft.id);
+	const r = await call(api.sheet());
+	if (!r)
+		return;
+	const bad = r.files.find(f => {
+		const sz = pngsize(f.data);
+		return !sz || sz.w !== d.frame || sz.h !== d.frame;
+	});
+	if (bad) {
+		App.say(bad.name + ' is not ' + d.frame + ' × ' + d.frame + ' px', true);
+		return;
+	}
+	Panel.draft.anims[i].frames.push(...r.files.map(f => framefrom(new Blob([f.data], {type: 'image/png'}))));
+	Panel.inspect();
+}
+
+/* Frame `frame` px square, one canvas per row of `frame` px: the frames in
+ * `blobs`, in order, drawn across one strip. */
+async function framestrip(blobs, frame)
+{
+	const bms = await Promise.all(blobs.map(b => createImageBitmap(b.blob)));
+	const c = document.createElement('canvas');
+	c.width = frame * bms.length;
+	c.height = frame;
+	bms.forEach((bm, i) => c.getContext('2d').drawImage(bm, i * frame, 0));
+	return c;
+}
+
+/* Row `row` of a decoded sheet, cut out full width as one strip `frame` px tall. */
+function rowstrip(im, row, frame)
+{
+	const c = document.createElement('canvas');
+	c.width = im.naturalWidth;
+	c.height = frame;
+	c.getContext('2d').drawImage(im, 0, row * frame, c.width, frame, 0, 0, c.width, frame);
+	return c;
+}
+
+/* Packs strips into one sheet.png, each at the next multiple of its own height -
+ * the placement stitch() uses - and returns the bytes with each strip's new row
+ * index in order. */
+async function packsheet(strips)
+{
+	let h = 0;
+	const at = strips.map(s => {
+		const y = Math.ceil(h / s.height) * s.height;
+		h = y + s.height;
+		return y;
+	});
+	const c = document.createElement('canvas');
+	c.width = Math.max(...strips.map(s => s.width));
+	c.height = h;
+	strips.forEach((s, i) => c.getContext('2d').drawImage(s, 0, at[i]));
+	const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+	return {bytes: new Uint8Array(await blob.arrayBuffer()), rows: strips.map((s, i) => at[i] / s.height)};
+}
+
+/* Rebuilds the definition's row from the draft: every frame of every animation,
+ * in order, is one strip. sheet.png is then repacked from only the rows the
+ * custom definitions still use (packsheet()), so the row it replaces is dropped
+ * and every custom definition's row is remapped to where its strip now sits.
+ * Definitions that share a row share its strip. The animations index into the
+ * new strip. With no animations left, the definition keeps its row and only
+ * the animations go. */
+Panel.animapply = async function ()
+{
+	const draft = Panel.draft;
+	const d = App.doc.json.level.entity_definitions.find(v => v.id === draft.id);
+	const names = draft.anims.map(a => a.name.trim());
+	if (names.some(n => !n) || new Set(names).size !== names.length) {
+		App.say('every animation needs a unique name', true);
+		return;
+	}
+	if (draft.anims.some(a => !a.frames.length)) {
+		App.say('every animation needs at least one frame', true);
+		return;
+	}
+
+	const custom = App.doc.json.level.entity_definitions.filter(v => v.sheet === 'custom');
+	const im = await sheetloaded();
+	const strips = [];
+	const kept = new Map();		/* definition -> its strip's index */
+	const slots = new Map();	/* "row:frame" -> the strip index it shares */
+	if (draft.anims.length) {
+		kept.set(d, strips.length);
+		strips.push(await framestrip(draft.anims.flatMap(a => a.frames), d.frame));
+	}
+	for (const v of custom) {
+		if (kept.has(v))
+			continue;
+		const key = v.row + ':' + v.frame;
+		if (!slots.has(key)) {
+			slots.set(key, strips.length);
+			strips.push(rowstrip(im, v.row, v.frame));
+		}
+		kept.set(v, slots.get(key));
+	}
+	const packed = await packsheet(strips);
+
+	Undo.act(() => {
+		App.doc.sheet = packed.bytes;
+		for (const v of custom)
+			v.row = packed.rows[kept.get(v)];
+		if (draft.anims.length) {
+			d.animations = {};
+			let start = 0;
+			draft.anims.forEach((a, i) => {
+				d.animations[names[i]] = {start: start, frames: a.frames.length};
+				start += a.frames.length;
+			});
+		} else {
+			delete d.animations;
+		}
+		/* The import shortcut remembers a row by index, and those have moved. */
+		App.lastsprite = null;
+		App.touch();
+	}, 'edit animations');
+	Panel.animclose();
+	Panel.palette();
+	Panel.inspect();
+	Grid.redraw();
+};
 
 /* Removes definition `id` and every entity placed from it, as one undo step.
  * Reached from the inspector's "remove definition" button and from the
@@ -619,6 +898,7 @@ Panel.removedef = function (id)
 	const d = defs.find(v => v.id === id);
 	if (!d)
 		return;
+	Panel.animclose();
 	const es = App.doc.json.level.entities;
 	let removed = 0;
 

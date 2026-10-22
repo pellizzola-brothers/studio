@@ -80,7 +80,7 @@ level.lvl
     "level": {
         "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
-        "entity_definitions": {"chapeleira": {"script": "chapeleira_ai", "sprite": {"sheet": "builtin", "row": 1}}},
+        "entity_definitions": {"goomba": {"script": "goomba.lua", "sheet": "builtin", "row": 2, "frame": [32, 32], "animations": {"walk": {"start": 0, "frames": 4}}}},
         "entities": [{"def": "chapeleira", "pos": [5, 10], "size": [32, 32]}],
         "backgrounds": ["foo"]
     }
@@ -99,18 +99,37 @@ level.lvl
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
   a path into the archive (`scripts/walker.lua`).
-- Every definition carries `sprite.sheet` and `sprite.row`, none empty. `sheet` is
+- Every definition carries `sheet` and `row`, none empty. `sheet` is
   `"builtin"` (the textures repo's `sheets/entities.png`), `"player"`
   (`sheets/player.png`) or `"custom"` (`sheet.png` at the archive's root).
-  Definitions are an object keyed by id, each `{script, sprite: {sheet, row}}`
-  (`sizesout()`/`defsin()` in `lvl.js` convert to and from the flat array
-  memory keeps). Every entity carries `size` on disk as a `[w, h]` pair, like `pos`, the same
-  for each entity of one definition and equal on both sides for now
-  (`sizesout()`/`sizesin()` in `lvl.js` move it between the two; in memory the
-  definition holds a single square edge, the renderer being square-only). A definition no entity uses is not
-  written at all. `size` is the edge, in pixels, of the row's square cell -
-  the largest sprite in it - and frames run across the row. On `"custom"`, sprite `(frame, row)`
-  sits at `(frame * size, row * size)`; the studio's `stitch()` guarantees it
+  Definitions are an object keyed by id, each `{script, sheet, row, frame,
+  animations}` (`sizesout()`/`defsin()` in `lvl.js` convert to and from the
+  flat array memory keeps). `frame` is `[n, n]`: the edge, in pixels, of one
+  sprite cell in the row. Memory holds it as `frame` too (`defsin()` refuses a
+  non-square one, since the renderer is square-only). `animations` is an object
+  keyed by name, each `{start, frames}`: `start` is the frame index along the
+  row, `frames` the count (`start` 0 or more, `frames` 1 or more). Memory keeps
+  it verbatim, `validate()` checks its shape, and `review()` (both copies)
+  warns when one runs past the row. The inspector's animation editor
+  (`Panel.animapply()`, `panel.js`) repacks sheet.png to the rows custom
+  definitions still use, dropping the rest and remapping every such `row`
+  (`packsheet()`); the import path only appends, as before. The row's width in frames is
+  `floor(sheet width / frame)`, read from sheet.png's header each time and never
+  stored. A definition written with `sprite: {sheet, row}` and no `frame` still
+  opens: its frame is its first entity's size, as it always was.
+  Each entity carries its own `size` on disk as a `[w, h]` pair, like `pos`,
+  and in memory as a single square edge, in sprite pixels. It is a whole number
+  of cells: `size` must be a positive multiple of `SPRITEPX` (32, `catalog.js`),
+  and an entity covers `size / SPRITEPX` cells on each side, from its `pos`'s
+  cell down and right. The canvas draws it at `size * B / SPRITEPX` world
+  pixels, the same scale-up a block's own 32px sprite gets, so a 32px entity
+  fills one cell like a block does and a 64px one fills four (`grid.js`'s draw
+  loop). A new entity is `ENTSIZE` (32px) until its inspector changes it. Two
+  entities of one definition may differ (a double-size goomba is the same
+  definition at `size` 64). A definition no entity uses is not written at all.
+  `frame`'s edge is the row's square cell - the largest sprite in it - and frames
+  run across the row. On `"custom"`, sprite `(frame, row)`
+  sits at `(frame * frame, row * frame)`; the studio's `stitch()` guarantees it
   by starting each imported row at a multiple of its own size, so one
   `sheet.png` mixes sizes. The built-in sheets are a padded atlas instead
   (1px around every cell, rows of unequal height): `row` there is the n-th
@@ -162,7 +181,7 @@ width, which no viewport can usefully show at once. Changing the scene count
 here alone would disagree with the game and the texture library the same way
 changing `B` or `W` alone would.
 
-`Grid.fit()` ("Fit Scene", `CmdOrCtrl+9`) zooms to a fixed `SCENEZOOM` (75% -
+`Grid.fit()` ("Fit Scene", `CmdOrCtrl+9`) zooms to a fixed `SCENEZOOM` (100% -
 the zoom a single scene reads at, a product decision like `H`'s, not a
 computed one) and moves the camera to that scene's own *left* edge, not
 `fitscene()`'s own centring (`fitW()`'s helper) - at a fixed
@@ -172,10 +191,10 @@ off the very start "fit scene" exists to jump to.
 
 **Sprite sheets: the catalog names the row, the sheet only verifies it.**
 Pixels cannot say that row 1 of `entities.png` is the chapeleira, so
-`ENTS`/`ITEMS` in `catalog.js` carry `sheet`/`row`/`size` for each built-in -
+`ENTS`/`ITEMS` in `catalog.js` carry `sheet`/`row`/`frame` for each built-in -
 a contract like a block id and its column. `checksheets()` (run once at boot,
 `app.js`) reads each real sheet with `sheetrows()` (alpha scan, canvas) and
-reports a different row count or a row taller than its `size` in the status
+reports a different row count or a row taller than its `frame` in the status
 bar, so a regenerated sheet that moved a row is noticed. Sprites themselves
 are still drawn from the individual files in `textures/`; only a *custom*
 definition is drawn from a slice of `sheet.png` (`artof()` in `catalog.js`,
@@ -186,7 +205,7 @@ points at a built-in row borrows that built-in's individual file.
 (`app.js`; "Import Sprite Sheet" in the file manager's background menu, or the
 button in a definition's inspector, which also assigns the first imported
 row to that definition) sends each PNG through `stitch()`, which re-encodes
-the whole sheet through a canvas: the new row's `size` is the PNG's own
+the whole sheet through a canvas: the new row's `frame` is the PNG's own
 height, `frames` its width / height, and nothing is resliced. `doc.sheet` is
 a `Uint8Array` replaced whole on import, so `Undo` snapshots it by reference
 (`undo.js`), exactly like a MIDI byte array. `lvl.js` checks only that it is a
@@ -218,23 +237,30 @@ two ways: the `script` dropdown in the inspector, or `assign to <def>` in the
 file manager menu while an entity is selected. Both go through
 `Panel.assign()`.
 
-**An entity always owns its cell.** Painting a block where an entity stands
-leaves air, and dragging an entity onto a block clears that block. Both
-directions live in `setblock()` and the move branch of `onmove()` in
-`grid.js`. The game applies the same rule on load, so this only mirrors it.
+**An entity always owns its cells.** Painting a block where an entity stands
+leaves air, and placing or moving an entity clears the blocks under its whole
+footprint. Painting goes through `setblock()`, which asks `entat()`; placing and
+moving go through `clearunder()` (`grid.js`), called from `onmove()`, `ondown()`,
+`Grid.nudge()`, `Grid.duplicate()` and `Grid.kpaint()`. The game applies the
+same rule on load, so this only mirrors it.
 
 **Entities snap to the grid.** They are dragged, never painted: a press
 creates the entity and the same gesture carries it to its cell. Snapping keeps
-"one entity, one cell" exactly true, which is what makes the rule above
+"one entity, one footprint" exactly true, which is what makes the rule above
 well-defined.
 
 **Two entities never share a cell.** Placing one is already refused (a press
-on an entity grabs it), and every path that *moves* one asks `taken()`
-(`grid.js`) first: a drag simply does not enter an occupied cell, a nudge or
-an inspector x/y edit refuses with a status message, and a duplicate goes to
-the next free cell in reading order. A level that arrives with stacked
-entities (hand-edited, or from before this rule) still opens; `review()`
-warns "shares a cell with entities[n]".
+on an entity grabs it), and every path that *moves* or *resizes* one asks
+`taken()` (`grid.js`) first, with the footprint it would cover: a drag simply
+does not enter an occupied cell, a nudge or an inspector x/y or size edit
+refuses with a status message, and a duplicate goes to the next free footprint
+in reading order. A footprint that leaves the level is refused the same way,
+since `taken()` counts the outside as taken. A level that arrives with
+overlapping or out-of-level entities (hand-edited, or from before this rule)
+still opens, because refusing on read would make it unopenable; `review()`
+warns "shares a cell with entities[n]" and "covers cells past the level
+bounds" so they can be fixed. The game and website must learn the footprint
+too: a 64px entity occupies four cells.
 
 **The canvas is keyboard-operable, in parallel with the pointer.**
 `Grid.kcur` (`grid.js`) is a second cursor, independent of the mouse-driven
