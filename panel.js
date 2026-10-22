@@ -712,13 +712,13 @@ function animview(d)
 			'<div class="frames">' + a.frames.map((f, j) =>
 			'<button class="frame" data-rm="' + i + ',' + j + '" aria-label="remove frame ' + (j + 1) + '">' +
 				'<img src="' + f.url + '" alt=""></button>').join('') + '</div>' +
-			'<div class="acts">' +
+			'<div class="animacts">' +
 				'<button class="act" data-add="' + i + '">add frames…</button>' +
 				'<button class="act" data-rmanim="' + i + '">remove animation</button>' +
 			'</div>' +
 		'</div>').join('') +
 		'<button class="act" id="p_anim_new">new animation</button>' +
-		'<div class="acts">' +
+		'<div class="animacts">' +
 			'<button class="act" id="p_anim_apply">apply</button>' +
 			'<button class="act" id="p_anim_cancel">cancel</button>' +
 		'</div></div>';
