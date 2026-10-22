@@ -435,7 +435,7 @@ function entityview(p, e)
 			'<option' + (v === script(e.def) ? ' selected' : '') + '>' + esc(v) +
 			'</option>').join('') + '</select>' +
 		'<div class="hint">' + shared(e.def) + '</div>' +
-		(dd && dd.sheet === 'custom' ? animview(dd) : '') +
+		(dd ? animview(dd) : '') +
 		'<button class="act" id="p_del">remove entity</button>';
 
 	$('p_def').onchange = ev => Undo.act(() => {
@@ -586,7 +586,7 @@ function defview(p, id)
 			'</option>').join('') + '</select></label>' +
 		spritefields(d) +
 		'<button class="act" id="p_import">import sprite sheet…</button>' +
-		(d.sheet === 'custom' ? animview(d) : '') +
+		animview(d) +
 		'<button class="act" id="p_rm">remove definition</button>';
 
 	$('p_id').onchange = ev => Undo.act(() => {
@@ -699,13 +699,17 @@ function framefrom(blob)
  * editor itself while Panel.draft is for this definition. */
 function animview(d)
 {
-	if (!Panel.draft || Panel.draft.id !== d.id) {
-		const names = Object.keys(d.animations || {});
-		const list = names.length ? names.map(n => esc(n) + ' · ' + d.animations[n].frames +
-			(d.animations[n].frames === 1 ? ' frame' : ' frames')).join('<br>') : 'no animations yet';
+	const names = Object.keys(d.animations || {});
+	const list = names.length ? names.map(n => esc(n) + ' · ' + d.animations[n].frames +
+		(d.animations[n].frames === 1 ? ' frame' : ' frames')).join('<br>') : 'no animations yet';
+	/* Always shown, so a built-in definition explains itself rather than
+	 * the section simply not being there. */
+	if (d.sheet !== 'custom')
+		return '<h4>animations</h4><div class="hint">' + list + '</div>' +
+			'<div class="hint">import a sprite sheet to add animations</div>';
+	if (!Panel.draft || Panel.draft.id !== d.id)
 		return '<h4>animations</h4><div class="hint">' + list + '</div>' +
 			'<button class="act" id="p_anim_open">edit animations…</button>';
-	}
 	return '<h4>animations</h4><div id="p_anim">' + Panel.draft.anims.map((a, i) =>
 		'<div class="anim">' +
 			'<label>name<input data-name="' + i + '" value="' + esc(a.name) + '"></label>' +
