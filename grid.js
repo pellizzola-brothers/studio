@@ -138,20 +138,26 @@ function entat(cx, cy)
 	return -1;
 }
 
-/* One entity, one footprint, inside the level: would an entity of `size`
- * (default: self's own) placed at (cx, cy) cover a cell outside the level, or
- * one another entity than `self` covers?  Every path that moves an entity -
- * drag, nudge, duplicate, the inspector's x/y and size - refuses a placement
- * for which this is true; placing a new one is already refused, since a press
- * on an entity grabs it instead. */
-function taken(cx, cy, self, size)
+/* Why an entity of `size` (default: self's own) could not sit at (cx, cy), or
+ * null if it can: its footprint leaves the level, or it covers a cell another
+ * entity than `self` covers.  Every path that moves an entity - drag, nudge,
+ * duplicate, the inspector's x/y and size - refuses a placement for which this
+ * is not null; placing a new one is already refused, since a press on an entity
+ * grabs it instead. */
+function blocked(cx, cy, self, size)
 {
 	const es = elist();
 	const n = (size || (es[self] && es[self].size) || SPRITEPX) / SPRITEPX;
 	if (cx < 0 || cy < 0 || cx + n > W || cy + n > Grid.h)
-		return true;
-	return es.some((o, j) => j !== self && o.pos[0] / B < cx + n && cx < o.pos[0] / B + span(o) &&
+		return 'the entity would leave the level';
+	const hit = es.some((o, j) => j !== self && o.pos[0] / B < cx + n && cx < o.pos[0] / B + span(o) &&
 		o.pos[1] / B < cy + n && cy < o.pos[1] / B + span(o));
+	return hit ? 'another entity is in the way' : null;
+}
+
+function taken(cx, cy, self, size)
+{
+	return blocked(cx, cy, self, size) !== null;
 }
 
 /* An entity owns every cell it covers, so placing or moving one clears the
@@ -887,8 +893,9 @@ Grid.nudge = function (dx, dy, coarse)
 	const ny = Math.max(0, Math.min((Grid.h - 1) * B, e.pos[1] + dy * step));
 	if (nx === e.pos[0] && ny === e.pos[1])
 		return;
-	if (taken(nx / B, ny / B, Grid.sel)) {
-		App.say('that cell is taken, or the entity would leave the level', true);
+	const why = blocked(nx / B, ny / B, Grid.sel);
+	if (why) {
+		App.say(why, true);
 		return;
 	}
 

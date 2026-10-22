@@ -291,9 +291,14 @@ App.say = function (m, bad, sticky)
 		el.append(icon, ' ' + m);
 	} else {
 		el.textContent = m || '';
-		if (m && !sticky)
-			saytimer = setTimeout(() => { el.textContent = ''; }, 4000);
 	}
+	/* Errors clear like everything else: a refusal left on screen reads as
+	 * the current state long after it stopped being true. */
+	if (m && !sticky)
+		saytimer = setTimeout(() => {
+			el.textContent = '';
+			el.classList.remove('bad');
+		}, 4000);
 };
 
 App.status = function (cx, cy)
@@ -404,8 +409,10 @@ App.review = function ()
 		if (c0 + span > W || r0 + span > Grid.h)
 			w.push('entities[' + n + '] ("' + s.def + '") covers cells past the level bounds');
 		let other = -1;
-		for (let r = r0; r < r0 + span; r++)
-			for (let c = c0; c < c0 + span; c++) {
+		/* Clamped to the level: a footprint past the edge is already warned
+		 * about, and a hand-edited size must not make this loop run away. */
+		for (let r = r0; r < Math.min(r0 + span, Grid.h); r++)
+			for (let c = c0; c < Math.min(c0 + span, W); c++) {
 				if (cells.has(c + ',' + r) && other < 0)
 					other = cells.get(c + ',' + r);
 				cells.set(c + ',' + r, n);

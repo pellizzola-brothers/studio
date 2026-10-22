@@ -456,8 +456,9 @@ function entityview(p, e)
 			const to = n ? [e.pos[0], v] : [v, e.pos[1]];
 			if (v === e.pos[n])
 				return Panel.update(e);
-			if (taken(to[0] / B, to[1] / B, Grid.sel)) {
-				App.say('that cell is taken, or the entity would leave the level', true);
+			const why = blocked(to[0] / B, to[1] / B, Grid.sel);
+			if (why) {
+				App.say(why, true);
 				return Panel.update(e);
 			}
 			Undo.act(() => {
@@ -472,8 +473,9 @@ function entityview(p, e)
 		/* A size is whole cells: it snaps to SPRITEPX, and a size that would
 		 * cover another entity is refused, like a move onto one. */
 		const size = Math.max(1, Math.round(+ev.target.value / SPRITEPX)) * SPRITEPX;
-		if (taken(e.pos[0] / B, e.pos[1] / B, Grid.sel, size)) {
-			App.say('that size would cover another entity or leave the level', true);
+		const why = blocked(e.pos[0] / B, e.pos[1] / B, Grid.sel, size);
+		if (why) {
+			App.say(why, true);
 			return Panel.inspect();
 		}
 		Undo.act(() => {
@@ -624,7 +626,16 @@ function defview(p, id)
 	};
 	if ($('p_row')) {
 		$('p_row').onchange = ev => resprite({row: Math.max(0, Math.round(+ev.target.value) || 0)}, 'change sprite row');
-		$('p_frame').onchange = ev => resprite({frame: Math.max(1, Math.round(+ev.target.value) || 1)}, 'change sprite frame');
+		/* A frame is one cell of sheet.png, so it must fit inside it. */
+		$('p_frame').onchange = ev => {
+			const frame = Math.max(1, Math.round(+ev.target.value) || 1);
+			const sz = pngsize(App.doc.sheet);
+			if (!sz || frame > Math.min(sz.w, sz.h)) {
+				App.say('a frame must fit inside sheet.png', true);
+				return Panel.inspect();
+			}
+			resprite({frame: frame}, 'change sprite frame');
+		};
 	}
 	if (d.sheet === 'custom')
 		animbind(d);

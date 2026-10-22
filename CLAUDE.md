@@ -128,7 +128,7 @@ level.lvl
   entities of one definition may differ (a double-size goomba is the same
   definition at `size` 64). A definition no entity uses is not written at all.
   `frame`'s edge is the row's square cell - the largest sprite in it - and frames
-  run across the row. On `"custom"`, sprite `(frame, row)`
+  run across the row. The inspector refuses a frame larger than sheet.png. On `"custom"`, sprite `(frame, row)`
   sits at `(frame * frame, row * frame)`; the studio's `stitch()` guarantees it
   by starting each imported row at a multiple of its own size, so one
   `sheet.png` mixes sizes. The built-in sheets are a padded atlas instead
