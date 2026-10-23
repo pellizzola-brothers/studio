@@ -30,7 +30,7 @@ const TEX = path.join(ROOT, 'textures');
  * but not placed, so it has none. A folder missing from here is an error: a new
  * row has to be named before the catalog can use it. */
 const IDS = {
-	bullet: 'bullet', chapeleira: 'chapeleira', erick: 'abu', pranta: 'pranta',
+	bullet: 'bullet', chapeleira: 'chapeleira', pranta: 'pranta',
 	tux: 'pinguim', coin: 'coin', energy_drink: 'soda', pizza: 'pizza',
 	plant: null, pellizzola: cat.PLAYER_DEF
 };
@@ -56,8 +56,13 @@ function groupsOf(folder)
 	return [folder];
 }
 
+/* convert.py's own skips (`if "erick" in path.join(root, file): continue`): a
+ * file whose path holds one of these is not packed into any sheet. */
+const SKIPS = [...fs.readFileSync(path.join(TEX, 'convert.py'), 'utf8')
+	.matchAll(/if "([^"]+)" in path\.join\(root, file\)/g)].map(m => m[1]);
+
 /* images(): every directory under `folder` in sorted order, each one's PNGs
- * sorted, as {file, dir}. */
+ * sorted, as {file, dir}, minus the files convert.py skips. */
 function framesOf(folder)
 {
 	const dirs = [];
@@ -70,8 +75,11 @@ function framesOf(folder)
 	dirs.sort();
 	const out = [];
 	for (const d of dirs)
-		for (const f of fs.readdirSync(d).filter(n => n.endsWith('.png')).sort())
-			out.push({file: path.join(d, f), dir: d});
+		for (const f of fs.readdirSync(d).filter(n => n.endsWith('.png')).sort()) {
+			const file = path.join(d, f);
+			if (!SKIPS.some(s => file.includes(s)))
+				out.push({file: file, dir: d});
+		}
 	return out;
 }
 

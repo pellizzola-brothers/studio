@@ -12,7 +12,6 @@
 const BUILTIN_ANIMATIONS = {
 	bullet: {idle: {start: 0, frames: 1}},
 	chapeleira: {idle: {start: 0, frames: 1}, die: {start: 1, frames: 1}, walk: {start: 2, frames: 2}},
-	abu: {idle: {start: 0, frames: 1}},
 	pranta: {idle: {start: 0, frames: 1}},
 	pinguim: {idle: {start: 0, frames: 1}},
 	coin: {idle: {start: 0, frames: 1}},

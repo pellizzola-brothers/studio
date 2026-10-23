@@ -141,7 +141,8 @@ level.lvl
   alphanumeric order, so animations come after the regular sprites), packed
   left to right with no padding, and each row starts where the previous one
   ends. A row's frame `i` is therefore at `x = i * frame`, and its `row` is the
-  folder's index in that order (`ENTS`/`ITEMS` in `catalog.js`). The frame
+  folder's index among the rows packed, in that order (`ENTS`/`ITEMS` in
+  `catalog.js`); a folder `convert.py` skips, like `enemies/erick`, takes none. The frame
   offsets of the built-in animations live in `builtin_animations.js`, which
   `npm run map_animations` generates from those folders (each animation named
   after its folder; every built-in is `idle`, its 00 sprite, and a folder with
@@ -673,7 +674,7 @@ reference `Image` only because it is never called in the main process.
 **Always build texture URLs through `texurl()`** in `catalog.js`, which
 encodes each path segment; older texture names carried accents, spaces and
 `!`. Characters and enemies are now directories of frames
-(`enemies/erick/00.png`); the catalog uses `00.png`, the idle frame. The
+(`enemies/tux/00.png`); the catalog uses `00.png`, the idle frame. The
 library ships one backdrop (`backdrops/00.png`), which all three `BGS`
 presets share, and no `icons/`, so `PLACEHOLDER` is a character sprite.
 
