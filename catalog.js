@@ -67,11 +67,11 @@ const ENTS = [
 	/* Each character/enemy is a directory of frames now; 00.png is the idle
 	 * one.  characters/pellizzola/ was leandro.png, the canonical player sprite
 	 * (textures/ui/main_menu.png's own labelled callout).  The ids and scripts
-	 * are the game's and predate the renames (erick was abu, tux pinguim), so
+	 * are the game's and predate the renames, so
 	 * only the files moved. */
 	{id: PLAYER_DEF, script: 'player.lua', file: 'characters/pellizzola/00.png', sheet: 'player',  row: 0, frame: 32},
 	{id: 'chapeleira', script: 'chapeleira_ai', file: 'enemies/chapeleira/00.png', sheet: 'builtin', row: 1, frame: 32},
-	{id: 'abu',        script: 'abu_ai',        file: 'enemies/erick/00.png',      sheet: 'builtin', row: 2, frame: 64},
+	{id: 'erick',        script: 'abu_ai',        file: 'enemies/erick/00.png',      sheet: 'builtin', row: 2, frame: 64},
 	{id: 'pranta',     script: 'pranta_ai',     file: 'enemies/pranta/00.png',     sheet: 'builtin', row: 3, frame: 32},
 	{id: 'pinguim',    script: 'pinguim_ai',    file: 'enemies/tux/00.png',        sheet: 'builtin', row: 4, frame: 32},
 	{id: 'bullet',     script: 'bullet_ai',     file: 'enemies/bullet/00.png',     sheet: 'builtin', row: 0, frame: 32}
