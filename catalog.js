@@ -1,12 +1,13 @@
 /* catalog.js - what the palette can paint and place.
  *
- * Block ids follow the contract documented in textures/README.md; the game
+ * A block's id is its column in textures/sheets/blocks.png plus one, since
+ * "000" is air: blocks/00.png is "001", blocks/11.png is "012".  The game
  * reads the same table, so an id may never be reused or renumbered here alone.
  *
- * Deliberately absent: blocks/lucky_block.png, gold, bronze and the
- * interactives/*_flag sprites were dropped from the texture library, as were
- * star.png and enemies/gombacrack*.png.  Nothing here may name a file
- * textures/ no longer ships. */
+ * Deliberately absent: the lucky, gold and bronze blocks, the diamond, silver,
+ * cloud and start blocks, and the interactives/*_flag sprites were dropped
+ * from the texture library, as were star.png and enemies/gombacrack*.png.
+ * Nothing here may name a file textures/ no longer ships. */
 'use strict';
 
 /* ENDTILE, PLACEHOLDER, BLANKDEF, tex, ready and the sheet helpers are
@@ -19,24 +20,21 @@ const W = 540;		/* entries per block_data row */
 const H = 12;		/* rows in a fresh level - a product decision, not a format one */
 
 const BLOCKS = [
-	{id:  1, name: 'brick',                 file: 'blocks/bricks.png'},
-	{id:  2, name: 'exclamation block',     file: 'blocks/normal_excla.png'},
-	{id:  3, name: 'end sign',              file: 'blocks/end_level.png'},
-	{id:  4, name: 'arrow',                 file: 'blocks/arrow_sign.png'},
-	{id:  5, name: 'gravel',                file: 'blocks/cement.png'},
-	{id:  6, name: 'diamond block',         file: 'blocks/diamond_block.png'},
-	{id:  7, name: 'sponge',                file: 'blocks/esponja.png'},
-	{id:  8, name: 'floor block',           file: 'blocks/floor_block.png'},
-	{id:  9, name: 'frozen floor block',    file: 'blocks/frozen_floor_block.png'},
-	{id: 10, name: 'ice exclamation block', file: 'blocks/ice_excla_block1.png'},
-	{id: 11, name: 'ice floor block',       file: 'blocks/ice_floor_block.png'},
-	{id: 12, name: 'note block',            file: 'blocks/note_block.png'},
-	{id: 13, name: 'sand',                  file: 'blocks/sand.png'},
-	{id: 14, name: 'silver block',          file: 'blocks/silver_block.png'},
-	{id: 15, name: 'cloud',                 file: 'blocks/strange_cloud1.png'}
+	{id:  1, name: 'brick',                 file: 'blocks/00.png'},
+	{id:  2, name: 'floor block',           file: 'blocks/01.png'},
+	{id:  3, name: 'ice floor block',       file: 'blocks/02.png'},
+	{id:  4, name: 'exclamation block',     file: 'blocks/03.png'},
+	{id:  5, name: 'arrow',                 file: 'blocks/04.png'},
+	{id:  6, name: 'sponge',                file: 'blocks/05.png'},
+	{id:  7, name: 'gravel',                file: 'blocks/06.png'},
+	{id:  8, name: 'frozen floor block',    file: 'blocks/07.png'},
+	{id:  9, name: 'ice exclamation block', file: 'blocks/08.png'},
+	{id: 10, name: 'note block',            file: 'blocks/09.png'},
+	{id: 11, name: 'sand',                  file: 'blocks/10.png'},
+	{id: 12, name: 'end sign',              file: 'blocks/11.png'}
 ];
 
-const ENDTILE = 3;	/* the unique goal block; review() in lvl.js and app.js count it */
+const ENDTILE = 12;	/* the unique goal block; review() in lvl.js and app.js count it */
 
 /* Interactives are entities, not tiles: they are dragged into place and carry a
  * script like any other entity.  The palette keeps them in their own group. */
@@ -84,7 +82,7 @@ const ENTS = [
  * A custom sheet is composed by the studio (app.js's stitch()) so that
  * sprite (frame, row) of size s always sits at (frame * s, row * s). */
 const SHEETKINDS = ['builtin', 'player', 'custom'];
-const SHEETFILES = {builtin: 'sheets/entities.png', player: 'sheets/player.png'};
+const SHEETFILES = {builtin: 'sheets/entities.png', player: 'sheets/player.png', blocks: 'sheets/blocks.png'};
 const BLANKDEF = 'pranta';	/* the art a new custom definition starts with */
 
 /* The three presets the schema allows, mapped onto real backdrop art.  The
@@ -231,7 +229,7 @@ async function checksheets()
 		}
 		const want = ENTS.concat(ITEMS).filter(e => e.sheet === kind);
 		const rows = sheetrows(im);
-		const named = Math.max(...want.map(e => e.row)) + 1;
+		const named = Math.max(0, ...want.map(e => e.row + 1));
 		/* Rows past the last one named are fine: textures/convert.py also packs
 		 * art the catalog does not place (characters/plant), at the end. */
 		if (rows.length < named)
@@ -239,6 +237,9 @@ async function checksheets()
 		for (const e of want)
 			if (!rows[e.row] || rows[e.row].h > e.frame)
 				out.push(e.id + ': row ' + e.row + ' of ' + SHEETFILES[kind] + ' does not fit ' + e.frame + 'px');
+		/* The blocks sheet is one row, one SPRITEPX column per block, in BLOCKS' order. */
+		if (kind === 'blocks' && im.naturalWidth !== BLOCKS.length * SPRITEPX)
+			out.push(SHEETFILES[kind] + ' is ' + im.naturalWidth + 'px wide, catalog.js names ' + BLOCKS.length + ' blocks');
 	}
 	return out;
 }

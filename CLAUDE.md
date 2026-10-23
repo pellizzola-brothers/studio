@@ -224,12 +224,16 @@ a `Uint8Array` replaced whole on import, so `Undo` snapshots it by reference
 PNG and, in `review()`, that each custom row lies inside it (via `pngsize()`
 in `catalog.js`, IHDR only - no decoder in the main process).
 
-**Block ids are a cross-repo contract.** The table in `textures/README.md` is
-the authority; the game reads the same ids. `catalog.js` deliberately omits
-`blocks/lucky_block.png`, gold/bronze and the `interactives/*_flag.png`
+**Block ids are a cross-repo contract.** A block's id is its column in
+`textures/sheets/blocks.png` plus one (`000` is air): `blocks/00.png` is `001`,
+`blocks/11.png` is `012`, and the end sign is `ENDTILE`. The game reads the same
+ids. `catalog.js` deliberately omits the lucky, gold and bronze blocks, the
+diamond, silver, cloud and start blocks and the `interactives/*_flag.png`
 sprites: they were dropped from the texture library, and a block id handed
-out for one would silently disagree with the game. To add a block, allocate
-the id in the textures repo, the game and `catalog.js` together.
+out for one would silently disagree with the game. `textures/README.md` still
+describes the old table and needs the same change. To add a block, add its
+column to the textures repo's blocks sheet, then allocate the id in the game
+and `catalog.js` together.
 
 **Interactives are entities, not tiles.** A pizza, coin or soda is an
 entity definition with a script, dragged into place like an enemy; the palette
