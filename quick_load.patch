@@ -1,0 +1,170 @@
+diff --git a/app.js b/app.js
+index 24a26e6..d7eb5fe 100644
+--- a/app.js
++++ b/app.js
+@@ -1319,8 +1319,8 @@ App.openlevel = async function ()
+ 
+ /* NAT-06: File -> Open Recent (menu.js) already knows the path - still has to
+  * cross the same unsaved-changes guard as any other open before replacing the
+- * document. */
+-App.openrecent = async function (p)
++ * document. `quiet` (Quick Load, menu.js) skips the "opened" status line. */
++App.openrecent = async function (p, quiet)
+ {
+ 	if (!await guard())
+ 		return;
+@@ -1329,7 +1329,8 @@ App.openrecent = async function (p)
+ 		return;
+ 	App.setdoc(r.doc, r.path);
+ 	App.setwarnings(r.warnings);
+-	App.say('opened ' + r.path);
++	if (!quiet)
++		App.say('opened ' + r.path);
+ };
+ 
+ App.save = async function ()
+@@ -1599,7 +1600,7 @@ addEventListener('DOMContentLoaded', () => {
+ 		App.setwarnings(r.warnings);
+ 		App.say('recovered unsaved changes - save to keep them', true);
+ 	});
+-	api.onopenrecent(p => App.openrecent(p));
++	api.onopenrecent((p, quiet) => App.openrecent(p, quiet));
+ 
+ 	/* UX-09: restores the last session's document instead of always landing
+ 	 * on an untitled blank one - lvl:init (main.js) falls back to the same
+diff --git a/main.js b/main.js
+index c1a331a..8060f95 100644
+--- a/main.js
++++ b/main.js
+@@ -65,6 +65,11 @@ else
+ 		const p = argvpath(argv);
+ 		if (p)
+ 			openpath(p);
++		const q = quickpathof(argv);
++		if (q) {
++			quickpath = q;
++			menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
++		}
+ 	});
+ 
+ let win = null;
+@@ -106,9 +111,22 @@ function openpath(p)
+  * names one. */
+ function argvpath(argv)
+ {
+-	return argv.find(a => /\.(lvl|json)$/i.test(a));
++	return argv.find((a, i) => /\.(lvl|json)$/i.test(a) && argv[i - 1] !== '--quick-load');
+ }
+ 
++/* --quick-load <file.lvl>: the level ALT+L (menu.js) reopens. Only the path
++ * is taken here - nothing is read at launch, so starting up costs nothing
++ * extra. A missing or non-.lvl path is ignored silently, leaving the item
++ * disabled. */
++function quickpathof(argv)
++{
++	const i = argv.indexOf('--quick-load');
++	const p = i >= 0 ? argv[i + 1] : null;
++	return p && /\.lvl$/i.test(p) && fs.existsSync(p) ? p : null;
++}
++
++let quickpath = null;
++
+ /* Can fire before whenReady() - the classic bug in this area - which is
+  * exactly why openpath() queues rather than assumes `win` exists yet. */
+ app.on('open-file', (e, p) => {
+@@ -252,7 +270,7 @@ function addrecent(p)
+ 	app.addRecentDocument(p);
+ 	saverecent([p, ...loadrecent().filter(x => x !== p)].slice(0, 10));
+ 	if (win)
+-		menu.set(win, menustate, loadrecent(), clearrecent);
++		menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
+ 	setdockmenu();
+ }
+ 
+@@ -261,7 +279,7 @@ function clearrecent()
+ 	app.clearRecentDocuments();
+ 	saverecent([]);
+ 	if (win)
+-		menu.set(win, menustate, [], clearrecent);
++		menu.set(win, menustate, [], clearrecent, quickpath);
+ 	setdockmenu();
+ }
+ 
+@@ -432,7 +450,7 @@ function createwin()
+ 	win.webContents.on('unresponsive', () =>
+ 		deadrenderer('The window is not responding.'));
+ 	win.on('closed', () => { win = null; clearTimeout(showtimer); ipcMain.removeListener('ui:ready', onready); });
+-	menu.set(win, menustate, loadrecent(), clearrecent);
++	menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
+ }
+ 
+ /* NAT-08: a losing second instance already called app.quit() above; not
+@@ -459,6 +477,7 @@ if (singleinstance)
+ 		const p = argvpath(process.argv);
+ 		if (p)
+ 			pendingopen = p;
++		quickpath = quickpathof(process.argv);
+ 		setdockmenu();
+ 		/* NAT-17: the one JumpList entry that is not already automatic -
+ 		 * recent documents populate their own category for free, once
+@@ -965,7 +984,7 @@ ipcMain.on('doc:name', (e, name) => { doc.name = name || null; retitle(); });
+ ipcMain.on('menu:state', (e, state) => {
+ 	menustate = state;
+ 	if (win)
+-		menu.set(win, menustate, loadrecent(), clearrecent);
++		menu.set(win, menustate, loadrecent(), clearrecent, quickpath);
+ });
+ 
+ ipcMain.on('forceclose', () => {
+diff --git a/menu.js b/menu.js
+index 6ecaac8..e17680a 100644
+--- a/menu.js
++++ b/menu.js
+@@ -28,7 +28,7 @@ const L = chrome.oscase;
+  * renderer can currently do. `recent` is main's own persisted path list
+  * (NAT-06) - existence-filtered by loadrecent() before it ever reaches here,
+  * so nothing further needs checking at build time. `onclear` empties it. */
+-function template(win, state, recent, onclear)
++function template(win, state, recent, onclear, quick)
+ {
+ 	const send = name => () => win.webContents.send('cmd', name);
+ 	const onlevel = state.tab === 'level';
+@@ -53,6 +53,13 @@ function template(win, state, recent, onclear)
+ 			{label: L('Open…'), accelerator: 'CmdOrCtrl+O', click: send('open')},
+ 			openrecent,
+ 			{type: 'separator'},
++			/* --quick-load (main.js): the one level ALT+L reopens. Same
++			 * open-recent route as the list above, with `quiet` set so the
++			 * "opened …" status line is skipped. Disabled, so its accelerator
++			 * is inert, when no such path was given at launch. */
++			{label: L('Quick Load'), accelerator: 'Alt+L', enabled: !!quick,
++				click: () => win.webContents.send('open-recent', quick, true)},
++			{type: 'separator'},
+ 			{label: L('Save'), accelerator: 'CmdOrCtrl+S', click: send('save')},
+ 			{label: L('Save As…'), accelerator: 'CmdOrCtrl+Shift+S', click: send('saveas')},
+ 			{type: 'separator'},
+@@ -193,9 +200,9 @@ function template(win, state, recent, onclear)
+ 
+ /* Cheaper and far simpler than mutating items in place, and state changes
+  * (tab switch, undo depth) are infrequent. */
+-function set(win, state, recent, onclear)
++function set(win, state, recent, onclear, quick)
+ {
+-	Menu.setApplicationMenu(Menu.buildFromTemplate(template(win, state, recent || [], onclear)));
++	Menu.setApplicationMenu(Menu.buildFromTemplate(template(win, state, recent || [], onclear, quick || null)));
+ }
+ 
+ module.exports = {set};
+diff --git a/preload.js b/preload.js
+index 9cc851f..610a1bc 100644
+--- a/preload.js
++++ b/preload.js
+@@ -31,7 +31,7 @@ contextBridge.exposeInMainWorld('api', {
+ 	 * than opening it directly in main - it still has to cross the
+ 	 * renderer's own unsaved-changes guard first, like any other open. */
+ 	openpath:	p => ipcRenderer.invoke('lvl:openpath', p),
+-	onopenrecent:	fn => ipcRenderer.on('open-recent', (e, p) => fn(p)),
++	onopenrecent:	fn => ipcRenderer.on('open-recent', (e, p, quiet) => fn(p, quiet)),
+ 	save:		doc => ipcRenderer.invoke('lvl:save', doc),
+ 	saveas:		(doc, name) => ipcRenderer.invoke('lvl:saveas', doc, name),
+ 	midi:		() => ipcRenderer.invoke('midi:import'),
