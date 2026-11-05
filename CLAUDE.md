@@ -5,7 +5,7 @@ Guidance for Claude Code (claude.ai/code) when working in this repository.
 ## What this is
 
 Pellizzola Brothers Studio: an Electron level designer that authors `.lvl`
-archives for the game (`../game`) and the website (`../website`).
+archives.
 
 Two modes share one window, switched by the tab strip:
 
@@ -44,9 +44,9 @@ preload.js    contextBridge surface — the renderer's entire view outward.
 lvl.js        .lvl read/write plus the level.json validator (main process).
 util.js       $() and esc() - loaded first so every other renderer script's
               dependency on them is explicit, not implicit in load order.
-builtin_animations.js  The built-in animations' frame offsets (a header: the game
-              must agree with it). Loaded before catalog.js.
-catalog.js    Block ids, entity definitions, backgrounds, texture loading.
+builtin_animations.js  The built-in animations' frame offsets (generated, part of
+              the format). Loaded before catalog.js.
+catalog.js    Block ids, entity definitions, the default backdrop, texture loading.
               Shared: the renderer loads it as a script, lvl.js requires it.
 tokens.js     Reads style.css's :root design tokens into a plain object, for
               grid.js's canvas and code.js's Monaco theme to consume.
@@ -59,7 +59,7 @@ code.js       Monaco host: one model per script.
 app.js        Document state, tabs, file manager, keyboard commands.
 index.html    Markup and script order.
 style.css     Colours sampled from `Pellizzola Brothers.svg`.
-textures/     Clone of github.com/pellizzola-brothers/textures at 4ed7851.
+textures/     The texture library, a git submodule (see Gotchas).
 tools/        check.js (npm run check) and probe.js (the headless harness).
 build/        electron-builder resources: the app icon (icon.icns/.ico/.png,
               icons/), referenced from package.json's "build" block.
@@ -71,6 +71,7 @@ A ZIP archive:
 
 ```
 level.lvl
+├── background.png  the level's backdrop, one PNG (always present)
 ├── level.json
 ├── sheet.png    the level's own sprites, one PNG (optional)
 ├── scripts/     user-written Lua
@@ -85,8 +86,7 @@ level.lvl
         "information": {"name": "", "description": "", "author": "", "level_hash": "<sha-256 hex>"},
         "block_data": [["000", "001", "..."]],
         "entity_definitions": {"goomba": {"script": "goomba.lua", "sheet": "builtin", "row": 2, "frame": [32, 32], "animations": {"walk": {"start": 0, "frames": 4}}}},
-        "entities": [{"def": "chapeleira", "pos": [5, 10], "size": [32, 32]}],
-        "backgrounds": ["foo"]
+        "entities": [{"def": "chapeleira", "pos": [5, 10], "size": [32, 32]}]
     }
 }
 ```
@@ -98,7 +98,7 @@ level.lvl
   scene (`H` rows x 20, written 20 to a line). Only scenes holding a block or an
   entity are written; an all-empty level is refused. `read()` re-expands to the
   540-wide grid (`scenes()`/`unscenes()` in `lvl.js`); the legacy `block_data`
-  form still opens. **The game and website must learn this layout.**.
+  form still opens.
 - Blocks are the only thing in `block_data`. Enemies *and* interactives both
   live in `entities`.
 - A built-in script is a bare name (`chapeleira_ai`); a level's own script is
@@ -148,12 +148,11 @@ level.lvl
   after its folder; every built-in is `idle`, its 00 sprite, and a folder with
   subfolders adds one animation per subfolder), and `App.usedef()` gives a new built-in definition its
   animations from there.
-  **The game and website must learn all of this.** Levels without the three fields are filled in on open by
+  Levels without the three fields are filled in on open by
   `sprites()` in `lvl.js`.
 - `pos` is `[col, row]` in block cells on disk: `[0, 0]` is the first block of
   the first row. In memory it stays `[x, y]` in world pixels (`B` per cell);
-  `sizesout()` divides and `posin()` in `lvl.js` multiplies back. **The game
-  and website must learn this too.**
+  `sizesout()` divides and `posin()` in `lvl.js` multiplies back.
 - `information.level_hash` is a SHA-256 (hex) over the archive's *contents*,
   not its bytes: `hashfiles()` in `lvl.js` feeds every file, sorted by name,
   as `name NUL length NUL bytes`, with `level.json` replaced by compact
@@ -166,12 +165,12 @@ level.lvl
 
 ## Key design decisions
 
-**Block size is 100px.** `game/src/main.c` draws blocks 100x100 and spaces
-them `i * 100`, so `B = 100` in `catalog.js` keeps entity `pos` aligned to the
-grid. Changing it here alone desynchronises the studio from the game.
+**Block size is 100px.** `B = 100` in `catalog.js` is a world block's edge, and
+keeps entity `pos` aligned to the grid. It is part of the format: changing it
+changes what every saved level means.
 
 **A level's dimensions are fixed, not authored.** `W` (540 columns) and `H`
-(12 rows) in `catalog.js` are both the same cross-repo contract `B` is - the
+(12 rows) in `catalog.js` are both the same format contract `B` is - the
 studio never lets a level be any size but this one, so the inspector's own
 `width`/`rows` fields (`panel.js`'s `levelview()`) are always disabled,
 read-only readouts, never inputs. There used to be a `Grid.setheight()` that
@@ -183,16 +182,14 @@ with some other row count (a legacy or hand-edited file - `block_data`'s
 format itself still permits it, "Height is free" above) still opens and
 displays correctly; only *creating* or *resizing* to a non-`H` height is gone.
 
-**A level divides into 27 scenes** (12x20 blocks each; `textures/README.md` still
-says 9 and needs the same change). Each
-scene gets its own backdrop once the schema grows a field for it, which it
-does not yet (`level.backgrounds` is still one id for the whole level, see
-"Backgrounds" below). `SCENES`/`SCENECOLS` in `grid.js` (`W / SCENECOLS` = 27 and 20
+**A level divides into 27 scenes** (12x20 blocks each). Each
+scene gets its own backdrop once the format grows a place for it, which it
+does not yet (`background.png` is still one image for the whole level, see
+"The background is an image" below). `SCENES`/`SCENECOLS` in `grid.js` (`W / SCENECOLS` = 27 and 20
 columns, matching `lvl.js`) exist today only for `Grid.fit()`/`Grid.fitW()`: "zoom to fit"
 targets the scene nearest the camera rather than the level's full 540-column
-width, which no viewport can usefully show at once. Changing the scene count
-here alone would disagree with the game and the texture library the same way
-changing `B` or `W` alone would.
+width, which no viewport can usefully show at once. The scene count is part
+of the format, the same way `B` and `W` are.
 
 `Grid.fit()` ("Fit Scene", `CmdOrCtrl+9`) zooms to a fixed `SCENEZOOM` (100% -
 the zoom a single scene reads at, a product decision like `H`'s, not a
@@ -225,26 +222,23 @@ a `Uint8Array` replaced whole on import, so `Undo` snapshots it by reference
 PNG and, in `review()`, that each custom row lies inside it (via `pngsize()`
 in `catalog.js`, IHDR only - no decoder in the main process).
 
-**Block ids are a cross-repo contract.** A block's id is its column in
+**Block ids are part of the format.** A block's id is its column in
 `textures/sheets/blocks.png` plus one (`000` is air): `blocks/00.png` is `001`,
-`blocks/11.png` is `012`, and the end sign is `ENDTILE`. The game reads the same
-ids. `catalog.js` deliberately omits the lucky, gold and bronze blocks, the
-diamond, silver, cloud and start blocks and the `interactives/*_flag.png`
-sprites: they were dropped from the texture library, and a block id handed
-out for one would silently disagree with the game. `textures/README.md` still
-describes the old table and needs the same change. To add a block, add its
-column to the textures repo's blocks sheet, then allocate the id in the game
-and `catalog.js` together.
+`blocks/11.png` is `012`, and the end sign is `ENDTILE`. `catalog.js`
+deliberately omits the lucky, gold and bronze blocks, the diamond, silver,
+cloud and start blocks and the `interactives/*_flag.png` sprites: they were
+dropped from `textures/`, and an id handed out for one would mean a block
+that no longer exists. To add a block, add its column to the blocks sheet in
+`textures/`, then allocate the id in `catalog.js`.
 
 **Interactives are entities, not tiles.** A pizza, coin or soda is an
 entity definition with a script, dragged into place like an enemy; the palette
-only keeps them in their own group. This diverges from `textures/README.md`,
-which still lists them as tile ids 43-46 in `block_data` — **the game and that
-README need the same change**. Levels written the old way are converted on
+only keeps them in their own group. Levels that still hold them as tile ids
+43-46 in `block_data` are converted on
 open by `items()` in `lvl.js`, and ids 43-46 stay reserved so they are never
 handed to a block. Their scripts use an `_item` suffix (`coin_item`) where
-enemies use `_ai` (`chapeleira_ai`); both are names the game resolves in its
-own script table.
+enemies use `_ai` (`chapeleira_ai`); both are built-in script names, not
+paths into the archive.
 
 **A script belongs to a definition, not to an entity.** The schema has no
 per-entity script field, so assigning one moves every entity of that kind. The
@@ -258,8 +252,7 @@ file manager menu while an entity is selected. Both go through
 leaves air, and placing or moving an entity clears the blocks under its whole
 footprint. Painting goes through `setblock()`, which asks `entat()`; placing and
 moving go through `clearunder()` (`grid.js`), called from `onmove()`, `ondown()`,
-`Grid.nudge()`, `Grid.duplicate()` and `Grid.kpaint()`. The game applies the
-same rule on load, so this only mirrors it.
+`Grid.nudge()`, `Grid.duplicate()` and `Grid.kpaint()`.
 
 **Entities snap to the grid.** They are dragged, never painted: a press
 creates the entity and the same gesture carries it to its cell. Snapping keeps
@@ -276,8 +269,7 @@ since `taken()` counts the outside as taken. A level that arrives with
 overlapping or out-of-level entities (hand-edited, or from before this rule)
 still opens, because refusing on read would make it unopenable; `review()`
 warns "shares a cell with entities[n]" and "covers cells past the level
-bounds" so they can be fixed. The game and website must learn the footprint
-too: a 64px entity occupies four cells.
+bounds" so they can be fixed. A 64px entity occupies four cells.
 
 **The canvas is keyboard-operable, in parallel with the pointer.**
 `Grid.kcur` (`grid.js`) is a second cursor, independent of the mouse-driven
@@ -299,8 +291,8 @@ and `Grid.commit()` packs back. **Every save path must call `Grid.commit()`
 first**, or the canvas and the file diverge.
 
 **Undo stores small parts whole and the grid as a diff.** A step keeps
-`information`, `entity_definitions`, `entities`, `backgrounds` and the script
-and MIDI tables verbatim, and the block grid only as the cells that changed —
+`information`, `entity_definitions`, `entities`, the background and sheet bytes
+and the script and MIDI tables verbatim, and the block grid only as the cells that changed —
 so painting a stroke costs a few bytes per cell instead of a copy of a 540-wide
 grid, which is what makes the history effectively unbounded. Script and MIDI
 tables are copied *shallowly*: their values are immutable strings and byte
@@ -459,7 +451,7 @@ capitalisation on both sides of that rule.
 
 **Settings persist in `settings.json`, view state does not.** A setting the
 user chooses once and expects to stick (grid overlay, palette cell size,
-editor font size, the recovery-snapshot interval) lives in
+editor font size, the recovery-snapshot interval, the background fit) lives in
 `app.getPath('userData')/settings.json`, owned by main
 (`settings:get`/`settings:set`) and cached in the renderer as the `Settings`
 object (`app.js`), applied once at boot and again live on every change
@@ -514,12 +506,23 @@ reverse.
 
 **Legacy levels migrate on open.** `migrate()` reshapes the old flat
 `level.data` array into 540-wide rows and fills in fields that predate the
-current schema, so files like `website/levels/1774028825093-pellizzola.json`
-still open. Bare `.json` (not zipped) is accepted too.
+current schema, so levels from before it still open. Bare `.json` (not zipped) is accepted too.
 
-**Backgrounds.** The schema allows only the presets `foo`, `bar`, `baz`;
-`catalog.js` maps them onto real backdrop art. The names are the spec's, not
-descriptions of the art — renaming them is a schema change affecting the game.
+**The background is an image in the archive, not a preset.** Every level
+carries `background.png` at its root; the old `backgrounds` presets
+(`foo`/`bar`/`baz`) are gone from `level.json`, and `migrate()` drops the key
+from a legacy level on open. A level without `background.png` (new, or
+legacy) gets `textures/backdrops/00.png` (`BGFILE`, `catalog.js`) as its
+default. In memory it is `doc.background`, a `Uint8Array` replaced whole and
+snapshotted by reference by `Undo` (the `bgs` part), exactly like `doc.sheet`.
+The inspector's "replace" button (`App.replacebg()`, `app.js`, over
+`background:import` in `main.js`) keeps a PNG of the current background's size
+byte for byte; any other format or size is decoded, fitted to that size
+(the select beside it: `resize` stretches, `crop` covers and cuts the centred
+overflow; `Settings.bgfit`, a setting in `settings.json`, not the level) and re-encoded as PNG through `createImageBitmap`/`OffscreenCanvas` -
+Chromium's own decoders, so no image dependency. `grid.js`'s `drawbg()` draws
+it through `pngimage()` (`catalog.js`), the same byte-keyed cache sheet.png
+uses.
 
 **Renames cascade.** Renaming a script rewrites any `entity_definitions.script`
 pointing at it, its Monaco model and its open tab. Deleting a script that a
@@ -619,18 +622,17 @@ own top corners at the same 26px, is the OS's to own now (`hiddenInset`/
 The design's inspector shows `health`, `damage`, `hit position`. The schema has
 no home for per-entity properties — an entity is `{def, pos}` — so the
 inspector edits what the format can actually store. Adding them means adding a
-field to the schema in the studio, the game and the website together.
+field to the schema.
 
-The `▶` button renders per the design but is **inert**: the game cannot load
-`.lvl` archives yet (`game/todo.txt` step 3.1, minizip + jansson). Wiring it up
-means spawning the game binary with a temporary level; the button already
+The `▶` button renders per the design but is **inert**: playtesting is not
+available yet. Wiring it up means launching a player with a temporary level;
+the button already
 carries that explanation in its tooltip and, for a screen reader, in
 `aria-describedby="run-help"` (`index.html`) - and the View menu's own
 disabled "Playtest" item carries it a second way, for a sighted user who
 never hovers or tabs into the tab strip at all.
 
-The studio is local-only. It does not talk to the website API; levels are
-published through the website's own `upload.html`.
+The studio is local-only: it opens and saves files, and talks to no server.
 
 The design's accent is `#7E58BE` (borders/icons/text) plus a second, lighter
 `#815AC1` for filled elements; the implementation ships `--acc: #7b56ba`
@@ -675,8 +677,8 @@ reference `Image` only because it is never called in the main process.
 encodes each path segment; older texture names carried accents, spaces and
 `!`. Characters and enemies are now directories of frames
 (`enemies/tux/00.png`); the catalog uses `00.png`, the idle frame. The
-library ships one backdrop (`backdrops/00.png`), which all three `BGS`
-presets share, and no `icons/`, so `PLACEHOLDER` is a character sprite.
+library ships one backdrop (`backdrops/00.png`), the default `background.png`
+(`BGFILE`), and no `icons/`, so `PLACEHOLDER` is a character sprite.
 
 ## Driving the app headlessly
 

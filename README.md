@@ -1,7 +1,7 @@
 # 🎮 Pellizzola Brothers (studio)
 
-A desktop level designer for the Pellizzola Brothers platformer game. <br>
-Authors `.lvl` archives containing block layouts, entities, scripts, and MIDI tracks — no build step, edit and relaunch.
+A desktop level designer for Pellizzola Brothers. <br>
+Authors `.lvl` archives containing block layouts, entities, a background, scripts, and MIDI tracks — no build step, edit and relaunch.
 
 ![Electron](https://img.shields.io/badge/Electron-latest-47848F?logo=electron&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white)
@@ -60,7 +60,7 @@ chrome.js            Platform-specific window chrome (macOS/Windows/Linux)
 index.html           Markup and renderer script order
 util.js              Helpers ($(), esc()) — loaded first, depended on by all
 tokens.js            Reads design tokens from style.css into a plain object
-catalog.js           Block IDs, entity defs, backgrounds, texture loading
+catalog.js           Block IDs, entity defs, the default backdrop, texture loading
 lvl.js               .lvl file read/write and schema validation
 undo.js              Undo/redo history with grid diff compression
 grid.js              Canvas rendering, panning, viewport culling, edit gestures
@@ -70,7 +70,7 @@ code.js              Monaco editor host — one model per script
 app.js               Document state, tabs, file manager, keyboard commands
 style.css            Design tokens and component styles
 settings.json        Default settings (grid overlay, palette size, etc.)
-textures/            Git submodule — clone of github.com/pellizzola-brothers/textures
+textures/            Git submodule — the texture library (see Related projects)
 tools/
   check.js           Validation: collision grep, .lvl round trip
   probe.js           Headless test harness (no GUI) for driving the app via JS
@@ -141,7 +141,7 @@ The studio is split across two processes:
 - Live text editing in Monaco
 
 **Design decisions and architectural patterns are documented in depth in [CLAUDE.md](./CLAUDE.md).** That file explains:
-- Why blocks are 100px (synced with the game)
+- Why blocks are 100px and levels a fixed 540×12
 - Why the grid is mirrored into a `Uint16Array` for performance
 - Why undo stores diffs, not copies
 - Why validation lives only in the main process
@@ -153,8 +153,10 @@ A `.lvl` file is a ZIP archive:
 
 ```
 level.lvl
+├── background.png      The level's backdrop (always present)
 ├── level.json          Level data (blocks, entities, metadata)
-├── scripts/            Lua scripts (Pellizzola game VM)
+├── sheet.png           The level's own sprites (optional)
+├── scripts/            Lua scripts
 └── midi/               MIDI background music files
 ```
 
@@ -168,23 +170,24 @@ level.lvl
       "description": "...",
       "author": "..."
     },
-    "block_data": [["000", "001", "..."]],
-    "entity_definitions": [
-      { "id": "chapeleira", "script": "chapeleira_ai" }
-    ],
+    "scenes": {"0": ["000", "001", "..."]},
+    "entity_definitions": {
+      "chapeleira": { "script": "chapeleira_ai", "sheet": "builtin", "row": 1, "frame": [32, 32] }
+    },
     "entities": [
-      { "def": "chapeleira", "pos": [500, 1000] }
-    ],
-    "backgrounds": ["foo"]
+      { "def": "chapeleira", "pos": [5, 10], "size": [32, 32] }
+    ]
   }
 }
 ```
 
-**Block IDs** are three-digit strings: `"000"` is air, `"001"+` are blocks. See `textures/README.md` for the full block registry.
+**Block IDs** are three-digit strings: `"000"` is air, `"001"+` are blocks. See `catalog.js` for the full block registry.
 
-**Every row in `block_data` is exactly 540 cells wide** (9 scenes × 60 columns per scene). Height is free.
+**A level is 540 columns wide**, split into 27 scenes of 20 columns × 12 rows. `scenes` holds only the scenes with something in them, each a flat row-major array; `pos` is `[column, row]` in blocks.
 
-**Blocks** live in `block_data`. **Enemies and collectibles** (pizza, coins, soda) are entities — dragged into place like the enemies, not painted as tiles.
+**The background** is `background.png`. The inspector's **replace** button takes any common image format and converts it to PNG at the current background's size, either stretched (**resize**) or scaled to cover and trimmed (**crop**).
+
+**Blocks** live in `scenes`. **Enemies and collectibles** (pizza, coins, soda) are entities — dragged into place like the enemies, not painted as tiles.
 
 ## Workflow
 
@@ -201,9 +204,8 @@ Use **arrow keys + Space/Return** to paint, **Delete** to erase. The keyboard cu
 ## Known Limitations
 
 - **No test suite** — `npm run check` validates the schema and round-trips `.lvl` files, but manual testing against the real app is the norm
-- **Playtest button (▶) is inert** — the game cannot load `.lvl` archives yet (see `game/todo.txt`). The button carries a tooltip explaining why
-- **One character tileset** — the game uses a fixed spritesheet for player and NPC animations. Replacing character sprites requires coordination with the game engine
-- **Spritesheet brittleness** — inserting a column in the middle of `textures/block_sheet.png` shifts all subsequent tile IDs. Always append or rebuild the entire sheet
+- **Playtest button (▶) is inert** — playtesting is not available yet. The button carries a tooltip saying so
+- **Spritesheet brittleness** — inserting a column in the middle of `textures/sheets/blocks.png` shifts all subsequent tile IDs. Always append or rebuild the entire sheet
 
 ## Contributing
 
@@ -215,7 +217,7 @@ When adding features:
 - Prefer editing existing files to creating new ones
 - Keep the undo system in sync — wrap mutations in `Undo.act()` or `Undo.begin()/end()`
 - Add design tokens to `style.css` before the components that need them
-- Test the full round-trip: editor → save `.lvl` → reopen → play in game
+- Test the full round-trip: editor → save `.lvl` → reopen
 
 ## License
 
@@ -227,3 +229,4 @@ Except where otherwise noted, this repository is licensed under the MIT license.
 - [Pellizzola Brothers (game)](https://github.com/pellizzola-brothers/game) — the platformer engine
 - [Pellizzola Brothers (website)](https://github.com/pellizzola-brothers/website) — level sharing platform
 - [Pellizzola Brothers (textures)](https://github.com/pellizzola-brothers/textures) — asset library (submodule)
+

@@ -136,7 +136,7 @@ function template(win, state, recent, onclear)
 			 * itself is left exactly as the design draws it (CLAUDE.md) -
 			 * this adds a route, it does not replace one. */
 			{label: L('Playtest'), enabled: false,
-				toolTip: 'The game cannot load .lvl archives yet (game/todo.txt 3.1).'},
+				toolTip: 'Playtest is not available yet.'},
 			{role: 'togglefullscreen'}
 		]
 	};

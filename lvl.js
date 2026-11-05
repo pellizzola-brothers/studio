@@ -1,6 +1,7 @@
 /* lvl.js - reading, writing and validating .lvl archives.
  *
  * A .lvl is a ZIP holding:
+ *	background.png	the level's backdrop (always present)
  *	level.json	the level itself (schema below)
  *	scripts/*.lua	user-written Lua
  *	midi/*.mid	music
@@ -9,14 +10,14 @@
 'use strict';
 
 const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const {zip, unzipSync, strToU8, strFromU8} = require('fflate');
 const cat = require('./catalog');
 
 /* W, H and B are catalog.js's alone (ARCH-02) - this file used to redefine
- * W itself, which meant the cross-repo row-width contract CLAUDE.md documents
+ * W itself, which meant the row-width contract CLAUDE.md documents
  * lived in two places, one of which required('./catalog') and ignored it. */
-const BG = ['foo', 'bar', 'baz'];	/* the only accepted background presets */
 const MAXERR = 12;			/* errors reported before we stop counting */
 
 function isstr(v) { return typeof v === 'string'; }
@@ -94,18 +95,11 @@ function validate(j)
 			e.push('entities[' + n + '].size must be a positive multiple of ' + cat.SPRITEPX);
 	});
 
-	if (!Array.isArray(l.backgrounds))
-		e.push('backgrounds must be an array');
-	else l.backgrounds.forEach((b, n) => {
-		if (!BG.includes(b))
-			e.push('backgrounds[' + n + '] "' + b + '" is not a preset (' + BG.join(', ') + ')');
-	});
-
 	return e.slice(0, MAXERR);
 }
 
-/* Semantic checks beyond validate(): things textures/README.md's contract
- * requires for the *game* to run the level, but that are not malformed data,
+/* Semantic checks beyond validate(): things a level needs to be playable
+ * (a player, one end block), but that are not malformed data,
  * so a level failing them must still be allowed to save - an author mid-build
  * legitimately has no end block yet.  Returns warning strings; empty means
  * clean.  Takes the whole document, not just json, because "a definition's
@@ -203,7 +197,8 @@ function review(doc)
 }
 
 /* Old levels stored one flat "data" array instead of rows, and predate the
- * entity and background fields.  Reshape in place so they still open. */
+ * entity fields.  Reshape in place so they still open.  The old preset
+ * "backgrounds" field is dropped: background.png replaced it. */
 function migrate(j)
 {
 	const l = j && j.level;
@@ -229,8 +224,7 @@ function migrate(j)
 		l.entity_definitions = [];
 	if (!Array.isArray(l.entities))
 		l.entities = [];
-	if (!Array.isArray(l.backgrounds))
-		l.backgrounds = [BG[0]];
+	delete l.backgrounds;
 
 	items(l);
 	sprites(l);
@@ -391,7 +385,14 @@ function blockrows(h)
  *	json	 parsed level.json
  *	scripts	 {"scripts/foo.lua": "<text>"}
  *	midi	 {"midi/foo.mid": Uint8Array}
- *	sheet	 the archive's sheet.png as a Uint8Array, or null */
+ *	sheet	 the archive's sheet.png as a Uint8Array, or null
+ *	background  the archive's background.png as a Uint8Array, never null:
+ *		 a level without one gets the default backdrop */
+function defaultbg()
+{
+	return new Uint8Array(fs.readFileSync(path.join(__dirname, 'textures', cat.BGFILE)));
+}
+
 function blank()
 {
 	return {
@@ -400,13 +401,13 @@ function blank()
 				information: {name: 'untitled', description: '', author: ''},
 				block_data: blockrows(cat.H),
 				entity_definitions: [],
-				entities: [],
-				backgrounds: [BG[0]]
+				entities: []
 			}
 		},
 		scripts: {},
 		midi: {},
-		sheet: null
+		sheet: null,
+		background: defaultbg()
 	};
 }
 
@@ -439,13 +440,18 @@ function read(p)
 				doc.midi[k] = unzipped[k];
 			else if (k === 'sheet.png')
 				doc.sheet = unzipped[k];
+			else if (k === 'background.png')
+				doc.background = unzipped[k];
 		}
 		if (doc.sheet && !cat.pngsize(doc.sheet))
 			throw new Error('sheet.png in ' + p + ' is not a PNG');
+		if (doc.background && !cat.pngsize(doc.background))
+			throw new Error('background.png in ' + p + ' is not a PNG');
 	} else {						/* a bare level.json */
 		doc = {json: JSON.parse(strFromU8(buf)), scripts: {}, midi: {}, sheet: null};
 	}
 
+	doc.background = doc.background || defaultbg();
 	const lv = doc.json.level;
 	if (lv && lv.scenes && typeof lv.scenes === 'object' && !Array.isArray(lv.scenes) && Object.keys(lv.scenes).length)
 		unscenes(lv);
@@ -586,10 +592,10 @@ function withhash(j, hash)
 }
 
 /* Every file the archive holds, by name: level.json laid out by formatlevel(),
- * then scripts, MIDI and the sheet as they are. */
+ * then the background, scripts, MIDI and the sheet as they are. */
 function filesof(doc, json)
 {
-	const files = {'level.json': strToU8(formatlevel(json))};
+	const files = {'background.png': new Uint8Array(doc.background), 'level.json': strToU8(formatlevel(json))};
 	for (const k in doc.scripts)
 		files[k] = strToU8(doc.scripts[k]);
 	for (const k in doc.midi)
@@ -631,14 +637,16 @@ async function write(p, doc)
 	const errs = validate(doc.json);
 	if (doc.sheet && !cat.pngsize(doc.sheet))
 		errs.push('sheet.png is not a PNG');
+	if (!cat.pngsize(doc.background))
+		errs.push('background.png is missing or not a PNG');
 	if (errs.length)
 		fail('refusing to save an invalid level:', errs);
 
 	const sc = scenes(doc.json.level);
 	if (!Object.keys(sc).length)
 		fail('refusing to save an empty level:', ['every scene is empty (no blocks or entities)']);
-	const {information, backgrounds} = doc.json.level;
-	const json = {...doc.json, level: {information, scenes: sc, ...sizesout(doc.json.level), backgrounds}};
+	const {information} = doc.json.level;
+	const json = {...doc.json, level: {information, scenes: sc, ...sizesout(doc.json.level)}};
 	const hash = hashfiles(filesof(doc, json));
 	const data = await pack(filesof(doc, withhash(json, hash)));
 
@@ -656,4 +664,4 @@ async function write(p, doc)
 	}
 }
 
-module.exports = {W: cat.W, H: cat.H, BG, blank, read, write, hashfiles, validate, migrate, review};
+module.exports = {W: cat.W, H: cat.H, blank, read, write, hashfiles, validate, migrate, review};

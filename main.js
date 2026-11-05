@@ -201,7 +201,7 @@ function saverecent(list)
  * belongs with window.json, silent and per-session, not a setting the user
  * chooses once and expects to stick. */
 function settingspath() { return path.join(app.getPath('userData'), 'settings.json'); }
-const SETTINGS_DEFAULTS = {grid: true, cellsize: 1, editorfontsize: 12, snapshotinterval: 30};
+const SETTINGS_DEFAULTS = {grid: true, cellsize: 1, editorfontsize: 12, snapshotinterval: 30, bgfit: 'resize'};
 
 function loadsettings()
 {
@@ -891,6 +891,19 @@ ipcMain.handle('sheet:import', guard(async () => {
 			throw new Error(path.basename(p) + ' is not a PNG');
 		return {name: path.basename(p), data};
 	})};
+}));
+
+/* Any image Chromium decodes; the renderer converts and resizes it to the
+ * level's background.png (app.js's App.replacebg()). */
+ipcMain.handle('background:import', guard(async () => {
+	const r = await dialog.showOpenDialog(win, {
+		title: chrome.oscase('Replace Background'), properties: ['openFile'],
+		filters: [{name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif', 'ico']}]
+	});
+	if (r.canceled)
+		return CANCEL;
+	const p = r.filePaths[0];
+	return {name: path.basename(p), data: new Uint8Array(fs.readFileSync(p))};
 }));
 
 /* UX-18: the other half of "not a one-way trip" - the bytes themselves live

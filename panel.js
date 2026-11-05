@@ -159,11 +159,11 @@ function group(parent, items, name, entries)
 }
 
 /* The first frame of a custom definition's row, as a data URL - or '' while
- * sheet.png is still decoding or lacks the row (sheetimage() repaints the
+ * sheet.png is still decoding or lacks the row (pngimage() repaints the
  * palette once it lands). */
 function sliceurl(d)
 {
-	const im = sheetimage(App.doc.sheet, () => { Panel.palette(); Grid.redraw(); });
+	const im = pngimage(App.doc.sheet, () => { Panel.palette(); Grid.redraw(); });
 	if (!ready(im))
 		return '';
 	const c = document.createElement('canvas');
@@ -368,13 +368,17 @@ function levelview(p)
 		'<label>description<textarea id="p_desc">' + esc(i.description) + '</textarea></label>' +
 		'<label>author<input id="p_auth" value="' + esc(i.author) + '"></label>' +
 		'<h4>background</h4>' +
-		'<select id="p_bg">' + BGS.map(b => '<option' +
-			(l.backgrounds[0] === b.id ? ' selected' : '') + '>' +
-			esc(b.id) + '</option>').join('') + '</select>' +
-		/* Both dimensions are fixed - B/W/H (catalog.js) are a cross-repo
-		 * contract with the game (CLAUDE.md), not a per-level choice, so
-		 * rows reads the same way width already did rather than offering an
-		 * edit the game could never honour. */
+		'<div class="row">' +
+			'<button class="act" id="p_bg">replace</button>' +
+			'<select id="p_bgfit" aria-label="how a different-sized image fits">' +
+				['resize', 'crop'].map(v => '<option' + (Settings.bgfit === v ? ' selected' : '') +
+					'>' + v + '</option>').join('') +
+			'</select>' +
+		'</div>' +
+		/* Both dimensions are fixed - B/W/H (catalog.js) are a format
+		 * contract (CLAUDE.md), not a per-level choice, so rows reads the
+		 * same way width already did rather than offering an edit no saved
+		 * level could carry. */
 		'<h4>size</h4>' +
 		'<div class="row">' +
 			'<label>width<input value="' + W + '" disabled aria-disabled="true"></label>' +
@@ -385,11 +389,8 @@ function levelview(p)
 	bind('p_name', v => { i.name = v; App.retitle(); }, 'rename level');
 	bind('p_desc', v => { i.description = v; }, 'edit description');
 	bind('p_auth', v => { i.author = v; }, 'edit author');
-	$('p_bg').onchange = e => Undo.act(() => {
-		l.backgrounds = [e.target.value];
-		App.touch();
-		Grid.redraw();
-	}, 'change background');
+	$('p_bg').onclick = () => App.replacebg(Settings.bgfit === 'crop');
+	$('p_bgfit').onchange = e => setsetting('bgfit', e.target.value);
 	$('p_fit').onclick = Grid.fit;
 }
 
@@ -668,12 +669,12 @@ Panel.animclose = function ()
 };
 
 /* Resolves to the level's sheet.png once it has decoded. A load listener, not
- * sheetimage()'s redraw callback: whichever caller created the image first owns
+ * pngimage()'s redraw callback: whichever caller created the image first owns
  * that callback, so a second caller would never hear it fire. */
 function sheetloaded()
 {
 	return new Promise(res => {
-		const im = sheetimage(App.doc.sheet, () => {});
+		const im = pngimage(App.doc.sheet, () => {});
 		if (ready(im))
 			res(im);
 		else

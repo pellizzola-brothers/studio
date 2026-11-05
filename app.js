@@ -18,7 +18,7 @@ const App = {doc: null, path: null, dirty: false, textdirty: false, tab: 'level'
  * (Grid.draw()'s grid-overlay check, code.js's editor font size, the
  * recovery-snapshot interval below) has a sane value even before that
  * fetch resolves. */
-const Settings = {grid: true, cellsize: 1, editorfontsize: 12, snapshotinterval: 30};
+const Settings = {grid: true, cellsize: 1, editorfontsize: 12, snapshotinterval: 30, bgfit: 'resize'};
 
 /* ARCH-03: the one platform fact the renderer has, driving [data-platform]
  * CSS selectors (macOS traffic-light padding, NAT-02's #title inset) - set
@@ -1139,6 +1139,49 @@ App.importsheet = async function (def)
 	Grid.redraw();
 	App.say('imported ' + out.added.map(a => a.name + ' as row ' + a.row + ' · ' +
 		a.frame + 'px · ' + a.frames + (a.frames === 1 ? ' frame' : ' frames')).join(', '));
+};
+
+/* Replace the level's background.png with an image the user picks.  A PNG
+ * already the current background's size is kept byte for byte; anything else
+ * (another format, another size) is decoded, fitted to that size and
+ * re-encoded as PNG through a canvas - Chromium's own decoders, so no
+ * dependency.  Fitting stretches the whole image, or with `crop` scales it to
+ * cover and cuts the centred overflow, keeping its aspect ratio. */
+App.replacebg = async function (crop)
+{
+	const r = await call(api.background());
+	if (!r)
+		return;
+
+	const want = pngsize(App.doc.background);
+	const have = pngsize(r.data);
+	let bytes = r.data;
+	if (!have || have.w !== want.w || have.h !== want.h) {
+		try {
+			const bm = await createImageBitmap(new Blob([r.data]));
+			let sw = bm.width, sh = bm.height;
+			if (crop) {
+				const s = Math.min(sw / want.w, sh / want.h);
+				sw = want.w * s;
+				sh = want.h * s;
+			}
+			const c = new OffscreenCanvas(want.w, want.h);
+			const g = c.getContext('2d');
+			g.imageSmoothingQuality = 'high';
+			g.drawImage(bm, (bm.width - sw) / 2, (bm.height - sh) / 2, sw, sh, 0, 0, want.w, want.h);
+			bytes = new Uint8Array(await (await c.convertToBlob({type: 'image/png'})).arrayBuffer());
+		} catch (e) {
+			App.fail('could not read ' + r.name + ' as an image');
+			return;
+		}
+	}
+	Undo.act(() => {
+		App.doc.background = bytes;
+		App.touch();
+	}, 'replace background');
+	Grid.redraw();
+	App.say('background is now ' + r.name + (bytes === r.data ? '' :
+		' (' + (crop ? 'cropped' : 'resized') + ' to ' + want.w + '×' + want.h + ' PNG, from ' + (have ? have.w + '×' + have.h : 'another format') + ')'));
 };
 
 /* NAT-09: a .mid/.midi file dropped onto #midis. */

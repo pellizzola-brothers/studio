@@ -1,14 +1,14 @@
 /* undo.js - one flat history for the level document.
  *
  * A step stores the small parts of the document verbatim (information,
- * definitions, entities, backgrounds, the script and MIDI tables, the sheet) and the
+ * definitions, entities, the script and MIDI tables, the sheet, the background) and the
  * block grid as a list of changed cells.  Painting a stroke therefore costs a
  * few bytes per cell touched rather than a copy of the whole grid, which is
  * what makes an unbounded history affordable.
  *
  * Script and MIDI tables are copied shallowly: the values are immutable
  * strings and byte arrays, so the copy is a handful of pointers.  The sheet
- * is one such byte array, replaced whole on import, never edited in place. */
+ * and the background are such byte arrays, replaced whole, never edited in place. */
 'use strict';
 
 /* `clean` is the depth at which the document last matched disk, so dirty is
@@ -24,7 +24,7 @@ function shot()
 		info: JSON.stringify(l.information),
 		defs: JSON.stringify(l.entity_definitions),
 		ents: JSON.stringify(l.entities),
-		bgs: JSON.stringify(l.backgrounds),
+		bgs: App.doc.background,
 		scripts: Object.assign({}, App.doc.scripts),
 		midi: Object.assign({}, App.doc.midi),
 		sheet: App.doc.sheet
@@ -181,7 +181,7 @@ function apply(s, side)
 	l.information = JSON.parse(w.info);
 	l.entity_definitions = JSON.parse(w.defs);
 	l.entities = JSON.parse(w.ents);
-	l.backgrounds = JSON.parse(w.bgs);
+	App.doc.background = w.bgs;
 	App.doc.scripts = Object.assign({}, w.scripts);
 	App.doc.midi = Object.assign({}, w.midi);
 	App.doc.sheet = w.sheet;

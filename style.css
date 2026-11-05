@@ -925,6 +925,7 @@ li.editing { flex-wrap: wrap; align-items: flex-start; }
 #props textarea { height: calc(var(--line-box) * 3); resize: vertical; }
 #props .row { display: flex; gap: var(--space-3); }
 #props .row > * { flex: 1; }
+#props .row > .act { margin-top: 0; }
 #props .act {
 	width: 100%;
 	margin-top: var(--space-4);

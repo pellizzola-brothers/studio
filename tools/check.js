@@ -69,6 +69,8 @@ async function roundtrip()
 	assert(!('block_data' in wl), 'block_data was written');
 	assert.deepStrictEqual(Object.keys(wl.scenes), ['6', '26'], 'empty scenes were written');
 	assert(files['sheet.png'], 'sheet.png is not at the archive root');
+	assert.deepStrictEqual(Array.from(files['background.png']), Array.from(doc.background), 'background.png is not the default backdrop at the archive root');
+	assert.deepStrictEqual(Array.from(back.background), Array.from(doc.background), 'background.png did not round-trip');
 	assert.deepStrictEqual(wl.entities[0].size, [32, 32], 'entity size is not a [w, h] pair');
 	assert.deepStrictEqual(wl.entities[0].pos, [120, 0], 'entity pos is not in block cells');
 	assert.deepStrictEqual(Array.from(back.sheet), Array.from(doc.sheet), 'sheet.png did not round-trip');

@@ -394,8 +394,7 @@ Grid.fitH = function ()
 };
 
 /* A level divides into 540 / 20 = 27 scenes of 12x20 blocks, the unit
- * lvl.js writes to level.scenes (textures/README.md still says 9 scenes per
- * level, each with its own backdrop - it needs the same change). Fitting the level's *actual*
+ * lvl.js writes to level.scenes. Fitting the level's *actual*
  * full width is never a useful "fit": a level is 54 000 world px wide, and
  * even ZMIN's floor only shows a fraction of that, so "fit width" and
  * "fit view" both target one scene - the one the camera is already over -
@@ -694,9 +693,9 @@ Grid.draw = function ()
 function blit(g, t, x, y, w, h)
 {
 	/* A custom definition: a slice of the level's own sheet.png, which
-	 * App.doc replaces whole on import and undo (sheetimage() keys on it). */
+	 * App.doc replaces whole on import and undo (pngimage() keys on it). */
 	if (t && t.custom) {
-		const sheet = sheetimage(App.doc.sheet, Grid.redraw);
+		const sheet = pngimage(App.doc.sheet, Grid.redraw);
 		if (ready(sheet))
 			g.drawImage(sheet, 0, t.custom.row * t.custom.frame, t.custom.frame, t.custom.frame, x, y, w, h);
 		else if (!App.doc.sheet)
@@ -736,12 +735,7 @@ function hatch(g, x, y, w, h)
  * exactly how far the level runs instead of smearing over the whole viewport. */
 function drawbg(g, cw)
 {
-	const id = App.doc.json.level.backgrounds[0];
-	const b = BGS.find(v => v.id === id);
-	if (!b)
-		return;
-
-	const im = tex(b.file, Grid.redraw);
+	const im = pngimage(App.doc.background, Grid.redraw);
 	if (!ready(im))
 		return;
 

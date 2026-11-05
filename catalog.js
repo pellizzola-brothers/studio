@@ -13,9 +13,9 @@
 /* ENDTILE, PLACEHOLDER, BLANKDEF, tex, ready and the sheet helpers are
  * consumed by app.js, grid.js and panel.js in the renderer's shared global
  * scope (CLAUDE.md), not by this file itself. */
-/* exported ENDTILE, PLACEHOLDER, BLANKDEF, tex, ready, sheetimage, artof, checksheets */
+/* exported ENDTILE, PLACEHOLDER, BLANKDEF, tex, ready, pngimage, artof, checksheets */
 
-const B = 100;		/* world pixels per block; game/src/main.c draws 100x100 */
+const B = 100;		/* world pixels per block: part of the format */
 const W = 540;		/* entries per block_data row */
 const H = 12;		/* rows in a fresh level - a product decision, not a format one */
 
@@ -84,13 +84,8 @@ const SHEETKINDS = ['builtin', 'player', 'custom'];
 const SHEETFILES = {builtin: 'sheets/entities.png', player: 'sheets/player.png', blocks: 'sheets/blocks.png'};
 const BLANKDEF = 'pranta';	/* the art a new custom definition starts with */
 
-/* The three presets the schema allows, mapped onto real backdrop art.  The
- * library ships a single backdrop now, so all three share it until more land. */
-const BGS = [
-	{id: 'foo', file: 'backdrops/00.png'},
-	{id: 'bar', file: 'backdrops/00.png'},
-	{id: 'baz', file: 'backdrops/00.png'}
-];
+/* The backdrop a level's background.png starts as (lvl.js's blank()/read()). */
+const BGFILE = 'backdrops/00.png';
 
 /* icons/ is gone from the library; any real sprite will do for "no art". */
 const PLACEHOLDER = 'characters/plant/00.png';
@@ -145,25 +140,25 @@ function tex(file, redraw)
 
 function ready(im) { return im && im.complete && im.naturalWidth > 0; }
 
-/* The level's own sheet.png, decoded.  Keyed on the byte array itself, which
- * is replaced (never mutated) on import and by undo, so a changed sheet is
- * exactly a changed reference. */
-let sheetcache = {bytes: null, url: null, im: null};
+/* A PNG the level carries (sheet.png, background.png), decoded.  Keyed on the
+ * byte array itself, which is replaced (never mutated) on import and by undo,
+ * so a changed image is exactly a changed reference; a WeakMap lets the old
+ * ones go with the undo history that still holds them. */
+const pngcache = new WeakMap();
 
-function sheetimage(bytes, redraw)
+function pngimage(bytes, redraw)
 {
 	if (!bytes)
 		return null;
-	if (sheetcache.bytes !== bytes) {
-		if (sheetcache.url)
-			URL.revokeObjectURL(sheetcache.url);
-		const im = new Image();
-		im.onload = redraw;
-		sheetcache = {bytes: bytes, im: im,
-			url: URL.createObjectURL(new Blob([bytes], {type: 'image/png'}))};
-		im.src = sheetcache.url;
+	let im = pngcache.get(bytes);
+	if (!im) {
+		im = new Image();
+		const url = URL.createObjectURL(new Blob([bytes], {type: 'image/png'}));
+		im.onload = () => { URL.revokeObjectURL(url); redraw(); };
+		im.src = url;
+		pngcache.set(bytes, im);
 	}
-	return sheetcache.im;
+	return im;
 }
 
 /* What to draw for definition `id`: a catalog entry (an individual file), or
@@ -246,5 +241,5 @@ async function checksheets()
 /* lvl.js pulls the tables in from the main process; the renderer loads this as
  * a plain script and picks the same names up as globals. */
 if (typeof module !== 'undefined' && module.exports)
-	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGS, ITEMTILE, ENDTILE, PLAYER_DEF, ENTSIZE, SPRITEPX,
+	module.exports = {B, W, H, BLOCKS, ITEMS, ENTS, BGFILE, ITEMTILE, ENDTILE, PLAYER_DEF, ENTSIZE, SPRITEPX,
 		SHEETKINDS, spriteof, pngsize};
