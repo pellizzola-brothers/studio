@@ -17,8 +17,7 @@ const win32 = process.platform === 'win32';
 
 /* --row-lg in style.css: the height every platform's native window controls
  * must line up with.  Duplicated here for the same reason main.js's
- * `backgroundColor` duplicates --frame (VIS-04, done - see "Already
- * completed" in POLISH.md) - real window chrome has to be described to the
+ * `backgroundColor` duplicates --frame (VIS-04) - real window chrome has to be described to the
  * OS before any CSS has loaded. */
 const BAR = 34;
 
@@ -34,7 +33,7 @@ function windowoptions()
 	if (mac)
 		return {
 			titleBarStyle: 'hiddenInset',
-			/* 14px traffic lights (the design's own size, POLISH.md VIS-03)
+			/* 14px traffic lights (the design's own size, VIS-03)
 			 * centred in the BAR-tall title row, 12px in from the left edge
 			 * to match #title's own padding. */
 			trafficLightPosition: {x: 12, y: (BAR - 14) / 2}

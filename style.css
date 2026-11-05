@@ -4,7 +4,7 @@
    GEO-01/VIS-04: this block is Studio's one design-token definition -
    spacing, row heights, radius, elevation, motion and z-index alongside the
    colours - consumed by grid.js and code.js through tokens.js rather than
-   each restating its own copy (POLISH.md). Not every token here has a
+   each restating its own copy. Not every token here has a
    consumer yet: `--radius-3` and `--elev-2` are still waiting on a dialog or
    popover that would actually need them (VIS-09), and `--z-*` is waiting on
    a second layer above the surface; they are defined now so the components
@@ -39,7 +39,7 @@
 	--fg: #b9a6d6;
 	/* #6a4ba2 measured 2.52-2.91:1 against the surfaces it sits on - below
 	   WCAG AA's 4.5:1 everywhere it was used as text.  Retuned to the
-	   lightest-surface-passing candidate from POLISH.md's VIS-01: 5.12:1 on
+	   lightest-surface-passing candidate from VIS-01: 5.12:1 on
 	   --frame, the worst case, so every existing use site now passes without
 	   having to reassign which token each rule uses. */
 	--dim: #9b7fd4;
@@ -62,8 +62,7 @@
 	--font-size-sm: 11px;			/* status bar */
 	--line-box: 18px;			/* font-size x 1.5; every row height derives from this.
 						   Named --line-box, not --line, because --line above
-						   is already the separator-colour token (POLISH.md's
-						   own proposed name collides with it). */
+						   is already the separator-colour token. */
 	/* A11Y-06: applyuiscale() (app.js) only ever overrides --font-size/
 	   --font-size-sm/--line-box directly - restating its multiplier here as
 	   a plain ratio lets the panel tokens below scale with it too, without
@@ -886,7 +885,7 @@ body.text #right { display: none; }
    element in the panel. appearance: none restyles the closed *control* only;
    the dropdown list itself stays native, so keyboard nav, type-ahead and a
    screen reader's combobox semantics are all unaffected - the correct trade
-   between "prefer native" and "visual consistency" (POLISH.md). The chevron
+   between "prefer native" and "visual consistency". The chevron
    is --dim's own colour as a literal, since a data-URI SVG cannot resolve a
    CSS custom property; update both together if --dim changes. */
 #props select {

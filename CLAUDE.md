@@ -429,7 +429,7 @@ one bridge for it, keeping "the renderer touches no filesystem" true for drag
 and drop the same way it already is for every dialog-driven open.
 
 **`lvl.write()` is async; `lvl.read()` is not.** Both were fully synchronous
-until a measurement (POLISH.md, NAT-19) found a 999-row save's own
+until a measurement (NAT-19) found a 999-row save's own
 compression - not disk I/O, not `Grid.commit()` - costing enough to freeze
 the main process. Only that step moved: `write()` now returns a Promise,
 using fflate's async `zip()` in place of `zipSync`, while the actual

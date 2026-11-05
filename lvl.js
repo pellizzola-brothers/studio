@@ -466,7 +466,7 @@ function read(p)
 
 /* NAT-19/ARCH-09/PERF-06: measured before touching, per this file's own
  * "the synchronous code is simpler... measure, then convert if the
- * measurement justifies it" rule (POLISH.md). A 999-row save, isolated from
+ * measurement justifies it" rule. A 999-row save, isolated from
  * IPC and Grid.commit(), broke down as: JSON.stringify 11ms, zipSync 82ms,
  * writeFileSync under 2ms, validate() 6ms - ~104ms total, crossing the
  * ~100ms budget on this machine, and disk I/O was never the reason: it cost

@@ -59,7 +59,7 @@ end
  * raster sprite sheet by anything but a whole multiple is exactly the
  * "never fractional" rule that token's own comment already rules out.
  *
- * POLISH.md's own suggestion was to express --font-size/--font-size-sm in
+ * The obvious alternative was to express --font-size/--font-size-sm in
  * rem and let a root font-size change do the rest - not done that way here,
  * because tokens.js reads both with getComputedStyle(...).getPropertyValue(),
  * which returns a custom property's *specified* value verbatim ("0.75rem"),
